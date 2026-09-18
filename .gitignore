@@ -1,0 +1,4 @@
+临时缓存_自动生成/
+*.py[cod]
+__pycache__/
+github_token.txt
