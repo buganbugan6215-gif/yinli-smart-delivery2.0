@@ -16,8 +16,8 @@ page_title("运营配送地图", "查看竞赛方案的全量配送网络，并�
 data = load_site_data()
 orders = init_orders(include_saved=True)
 fmap, minor_layer = create_chengdu_map(zoom_start=10)
-add_route_features(fmap, data.route_features)
-add_customer_points(fmap, data.customer_points)
+add_route_features(fmap, data.geojson.get("routes", {}))
+add_customer_points(fmap, data.geojson.get("customers", {}))
 for order in orders:
     route = order.get("路线GeoJSON")
     if route and route.get("features"):
