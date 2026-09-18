@@ -1,0 +1,1085 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.19,
+          30.83
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-01",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 1,
+        "demand_kg": 70.0,
+        "time_window": "330-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.11,
+          30.64
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-02",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 2,
+        "demand_kg": 35.0,
+        "time_window": "360-420"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.17,
+          30.84
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-03",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 3,
+        "demand_kg": 30.0,
+        "time_window": "300-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.14,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-04",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 4,
+        "demand_kg": 100.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.2,
+          30.81
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-05",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 5,
+        "demand_kg": 60.0,
+        "time_window": "330-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.18,
+          30.71
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-06",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 6,
+        "demand_kg": 160.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.59
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-07",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 7,
+        "demand_kg": 120.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.63
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-08",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 8,
+        "demand_kg": 25.0,
+        "time_window": "360-420"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.2,
+          30.59
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-09",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 9,
+        "demand_kg": 180.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.05,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-10",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 10,
+        "demand_kg": 20.0,
+        "time_window": "300-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.0,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-11",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 11,
+        "demand_kg": 230.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.15,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-12",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 12,
+        "demand_kg": 75.0,
+        "time_window": "330-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.76
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-13",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 13,
+        "demand_kg": 90.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.59
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-14",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 14,
+        "demand_kg": 30.0,
+        "time_window": "360-420"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.16,
+          30.79
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-15",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 15,
+        "demand_kg": 150.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.28,
+          30.73
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-16",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 16,
+        "demand_kg": 25.0,
+        "time_window": "300-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.09,
+          30.64
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-17",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 17,
+        "demand_kg": 60.0,
+        "time_window": "300-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.99,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-18",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 18,
+        "demand_kg": 180.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.03,
+          30.69
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-19",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 19,
+        "demand_kg": 160.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.07,
+          30.65
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-20",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 20,
+        "demand_kg": 35.0,
+        "time_window": "330-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.86,
+          30.71
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-21",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 21,
+        "demand_kg": 80.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.12,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-22",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 22,
+        "demand_kg": 120.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.66
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-23",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 23,
+        "demand_kg": 30.0,
+        "time_window": "300-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.56
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-24",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 24,
+        "demand_kg": 25.0,
+        "time_window": "360-420"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.1,
+          30.77
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-25",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 25,
+        "demand_kg": 135.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.93,
+          30.7
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-26",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 26,
+        "demand_kg": 130.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-27",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 27,
+        "demand_kg": 65.0,
+        "time_window": "300-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.99,
+          30.73
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-28",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 28,
+        "demand_kg": 30.0,
+        "time_window": "300-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.03,
+          30.74
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-29",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 29,
+        "demand_kg": 60.0,
+        "time_window": "300-390"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.98,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "鲜面条-30",
+        "product": "鲜面条",
+        "product_code": "N",
+        "customer": 30,
+        "demand_kg": 145.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.09,
+          30.69
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-01",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 1,
+        "demand_kg": 110.0,
+        "time_window": "420-480"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.04,
+          30.67
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-02",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 2,
+        "demand_kg": 130.0,
+        "time_window": "390-450"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.11,
+          30.64
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-03",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 3,
+        "demand_kg": 75.0,
+        "time_window": "450-510"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.14,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-04",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 4,
+        "demand_kg": 580.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.13,
+          30.69
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-05",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 5,
+        "demand_kg": 120.0,
+        "time_window": "420-480"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.18,
+          30.71
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-06",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 6,
+        "demand_kg": 680.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.59
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-07",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 7,
+        "demand_kg": 460.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.55
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-08",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 8,
+        "demand_kg": 85.0,
+        "time_window": "480-540"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.2,
+          30.59
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-09",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 9,
+        "demand_kg": 430.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.66
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-10",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 10,
+        "demand_kg": 98.0,
+        "time_window": "420-480"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.0,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-11",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 11,
+        "demand_kg": 320.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.26,
+          30.88
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-12",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 12,
+        "demand_kg": 105.0,
+        "time_window": "480-540"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.63
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-13",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 13,
+        "demand_kg": 75.0,
+        "time_window": "390-450"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.05,
+          30.71
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-14",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 14,
+        "demand_kg": 90.0,
+        "time_window": "450-510"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.06,
+          30.77
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-15",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 15,
+        "demand_kg": 770.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.7,
+          30.64
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-16",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 16,
+        "demand_kg": 120.0,
+        "time_window": "510-570"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.07,
+          30.63
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-17",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 17,
+        "demand_kg": 92.0,
+        "time_window": "390-450"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.99,
+          30.68
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-18",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 18,
+        "demand_kg": 620.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.03,
+          30.69
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-19",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 19,
+        "demand_kg": 530.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.14,
+          30.73
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-20",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 20,
+        "demand_kg": 130.0,
+        "time_window": "450-510"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.25,
+          30.89
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-21",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 21,
+        "demand_kg": 105.0,
+        "time_window": "420-480"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.12,
+          30.95
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-22",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 22,
+        "demand_kg": 710.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.04,
+          30.64
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-23",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 23,
+        "demand_kg": 80.0,
+        "time_window": "510-570"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.62
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-24",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 24,
+        "demand_kg": 128.0,
+        "time_window": "390-450"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.1,
+          30.77
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-25",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 25,
+        "demand_kg": 440.0,
+        "time_window": "270-360"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.93,
+          30.7
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-26",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 26,
+        "demand_kg": 600.0,
+        "time_window": "270-330"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.67
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-27",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 27,
+        "demand_kg": 110.0,
+        "time_window": "480-540"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.18,
+          30.82
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-28",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 28,
+        "demand_kg": 98.0,
+        "time_window": "390-450"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.08,
+          30.6
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-29",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 29,
+        "demand_kg": 80.0,
+        "time_window": "420-480"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          103.98,
+          30.61
+        ]
+      },
+      "properties": {
+        "label": "姜蒜-30",
+        "product": "姜蒜",
+        "product_code": "G",
+        "customer": 30,
+        "demand_kg": 860.0,
+        "time_window": "270-330"
+      }
+    }
+  ]
+}

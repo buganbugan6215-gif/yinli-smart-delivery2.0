@@ -1,0 +1,83 @@
+{
+  "noodle": {
+    "solution_type": "ALNS较优可行解，不声称全局最优",
+    "customers": 30,
+    "vehicles_used": 6,
+    "small_used": 6,
+    "medium_used": 0,
+    "total_load_kg": 2655.0,
+    "total_distance_km": 594.8367961352268,
+    "total_weighted_range_km": 612.0663605943657,
+    "fixed_cost": 1200.0,
+    "transport_cost": 1487.091990338067,
+    "cooling_cost": 262.84444962983224,
+    "time_penalty_cost": 37.92712843362729,
+    "loss_cost": 89.08905600000017,
+    "total_cost": 3076.952624401527,
+    "ontime_customers": 18,
+    "ontime_rate": 0.6,
+    "minimum_ontime_rate": 0.6,
+    "cost_breakdown": {
+      "fixed_cost": 1200.0,
+      "transport_cost": 1487.091990338067,
+      "cooling_cost": 262.84444962983224,
+      "time_penalty_cost": 37.92712843362729,
+      "loss_cost": 89.08905600000017
+    }
+  },
+  "ginger": {
+    "solution_type": "ALNS较优可行解，不声称全局最优",
+    "customers": 30,
+    "vehicles_used": 6,
+    "small_used": 6,
+    "medium_used": 0,
+    "garlic_load_kg": 5346.0,
+    "ginger_load_kg": 3485.0,
+    "total_load_kg": 8831.0,
+    "total_capacity_kg": 9000.0,
+    "average_load_rate": 0.9812222222222222,
+    "total_distance_km": 729.4384109657639,
+    "total_weighted_range_km": 786.4003857899629,
+    "peak_distance_km": 258.6008257042365,
+    "fixed_cost": 1200.0,
+    "transport_cost": 1823.5960274144097,
+    "cooling_cost": 303.98416484195553,
+    "time_penalty_cost": 7.172672956679842,
+    "loss_cost": 264.2443238400005,
+    "total_cost": 3598.9971890530455,
+    "ontime_customers": 23,
+    "ontime_rate": 0.7666666666666667,
+    "minimum_ontime_rate": 0.6,
+    "cost_breakdown": {
+      "fixed_cost": 1200.0,
+      "transport_cost": 1823.5960274144097,
+      "cooling_cost": 303.98416484195553,
+      "time_penalty_cost": 7.172672956679842,
+      "loss_cost": 264.2443238400005
+    }
+  },
+  "reuse": {
+    "solution_type": "物理车辆-趟次-时间统一排程较优可行解，不声称全局最优",
+    "customers": 60,
+    "vehicles_used": 10,
+    "total_distance_km": 1241.736996250139,
+    "total_cost": 6912.026867887573,
+    "fixed_cost": 2400.0,
+    "variable_cost": 4512.026867887573,
+    "ontime_customers": 30,
+    "ontime_rate": 0.5,
+    "reused_vehicle_count": 2,
+    "cross_product_reused_vehicle_count": 2,
+    "trip_count": 13,
+    "small_used": 8,
+    "medium_used": 2,
+    "validations": {
+      "车辆时段不重叠": true,
+      "跨产品复用已记录": true
+    },
+    "cost_breakdown": {
+      "fixed_cost": 2400.0,
+      "variable_cost": 4512.026867887573
+    }
+  }
+}

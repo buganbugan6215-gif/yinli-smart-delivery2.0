@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+from datetime import datetime
+import json
+import os
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from uuid import uuid4
+
+import pandas as pd
+import streamlit as st
+
+STATUS_FLOW = ["订单已提交", "方案待确认", "仓库备货中", "配送途中", "已送达", "签收完成"]
+ROOT = Path(__file__).resolve().parents[1]
+ORDER_DATA_DIR = ROOT / "客户订单数据"
+SETTINGS_PATH = ORDER_DATA_DIR / "调价参数.json"
+DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
+
+
+def staff_password() -> str | None:
+    """密码只从运行环境或 Streamlit secrets 读取。"""
+    configured = os.getenv("YL_STAFF_PASSWORD")
+    if configured:
+        return configured
+    try:
+        return st.secrets.get("YL_STAFF_PASSWORD")
+    except (FileNotFoundError, RuntimeError):
+        return None
+
+
+def pricing_settings() -> dict[str, float]:
+    defaults = {
+        "起步价_元": 12.0, "里程价_元每km": 0.8,
+        "鲜面条_元每kg": 0.75, "姜蒜_元每kg": 0.41,
+        "小型冷藏车数量": 6.0, "小型冷藏车载重_kg": 650.0,
+        "小型冷藏车固定成本_元": 120.0, "小型冷藏车单位运输成本_元每km": 1.6,
+        "小型冷藏车续航_km": 260.0,
+        "大型冷藏车数量": 2.0, "大型冷藏车载重_kg": 1500.0,
+        "大型冷藏车固定成本_元": 220.0, "大型冷藏车单位运输成本_元每km": 2.2,
+        "大型冷藏车续航_km": 320.0,
+        "配送制冷系数_元每小时": 18.0, "服务制冷系数_元每小时": 12.0,
+        "早到惩罚_元每小时": 8.0, "晚到惩罚_元每小时": 30.0,
+        "运输货损率": 0.005, "服务货损率": 0.002,
+        "平均速度_kmh": 35.0, "早高峰速度_kmh": 25.0,
+        "鲜面条单价_元每kg": 8.0, "生姜单价_元每kg": 10.0, "大蒜单价_元每kg": 12.0,
+    }
+    try:
+        saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        return {key: float(saved.get(key, value)) for key, value in defaults.items()}
+    except (OSError, ValueError, TypeError):
+        return defaults
+
+
+def save_pricing_settings(values: dict[str, float]) -> None:
+    ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    SETTINGS_PATH.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def minutes_from_midnight(value: str) -> int:
+    hour, minute = (int(part) for part in value.split(":"))
+    return hour * 60 + minute
+
+
+def service_minutes(product: str, noodle_kg: float = 0, ginger_kg: float = 0, garlic_kg: float = 0) -> int:
+    q = float(noodle_kg if product == "鲜面条" else ginger_kg + garlic_kg)
+    if product == "鲜面条":
+        return 10 if q <= 25 else 15 if q <= 50 else 20 if q < 90 else 25 if q <= 130 else 30
+    return 10 if q <= 90 else 15 if q <= 190 else 20 if q <= 290 else 25 if q <= 390 else 30 if q <= 490 else 35 if q <= 590 else 40
+
+
+def haversine_km(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+    from math import asin, cos, radians, sin, sqrt
+    dlat, dlon = radians(lat2 - lat1), radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 6371.0088 * 2 * asin(sqrt(a))
+
+
+def estimate_delivery_fee(product: str, quantity_kg: float, longitude: float | None = None, latitude: float | None = None) -> dict[str, float]:
+    """报价由起步价、品类重量价与参考里程价组成。"""
+    rates = pricing_settings()
+    weight = max(0.0, float(quantity_kg)) * rates[f"{product}_元每kg"]
+    distance = haversine_km(DEPOT_LON, DEPOT_LAT, longitude, latitude) if longitude is not None and latitude is not None else 0.0
+    mileage = distance * rates["里程价_元每km"]
+    return {"起步价_元": rates["起步价_元"], "重量价_元": round(weight, 2), "参考距离_km": round(distance, 2), "里程价_元": round(mileage, 2), "预估费用_元": round(rates["起步价_元"] + weight + mileage, 2)}
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def geocode_address(address: str) -> tuple[float, float, str] | None:
+    """仅在客户主动点击识别时访问外部服务，且缓存 24 小时。"""
+    query = address.strip()
+    if len(query) < 6:
+        return None
+    url = "https://nominatim.openstreetmap.org/search?" + urlencode({"q": query + " 成都", "format": "jsonv2", "limit": 1, "countrycodes": "cn"})
+    try:
+        request = Request(url, headers={"User-Agent": "YinliDeliveryContest/1.0"})
+        with urlopen(request, timeout=6) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        if result:
+            return float(result[0]["lon"]), float(result[0]["lat"]), str(result[0].get("display_name", query))
+    except Exception:
+        return None
+    return None
+
+
+def _route_geojson(longitude: float | None, latitude: float | None) -> dict[str, Any] | None:
+    if longitude is None or latitude is None:
+        return None
+    return {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"label": "订单演示调度线", "route_mode": "演示坐标连线"}, "geometry": {"type": "LineString", "coordinates": [[DEPOT_LON, DEPOT_LAT], [float(longitude), float(latitude)]]}}]}
+
+
+def _excel_value(value: Any) -> Any:
+    return json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+
+
+def save_order_to_excel(order: dict[str, Any]) -> str:
+    delivery_date = str(order.get("期望送达日期") or datetime.now().date())
+    product = str(order.get("品类", "未分类"))
+    ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    date_key = delivery_date.replace("-", "")
+    product_key = "鲜面" if product == "鲜面条" else "姜蒜"
+    path = ORDER_DATA_DIR / f"{date_key}{product_key}.xlsx"
+    row = pd.DataFrame([{key: _excel_value(value) for key, value in order.items() if key not in {"状态序号", "保存路径", "保存状态"}}])
+    existing = pd.read_excel(path) if path.exists() else pd.DataFrame()
+    pd.concat([existing, row], ignore_index=True).to_excel(path, index=False)
+    return str(path.relative_to(ROOT))
+
+
+def _parse_record(item: dict[str, Any], path: Path) -> dict[str, Any]:
+    for key in ("路线GeoJSON", "异常反馈", "报价明细"):
+        if isinstance(item.get(key), str) and item[key].strip().startswith(("{", "[")):
+            try:
+                item[key] = json.loads(item[key])
+            except ValueError:
+                pass
+    item["保存路径"] = str(path.relative_to(ROOT))
+    item["状态序号"] = STATUS_FLOW.index(item.get("状态")) if item.get("状态") in STATUS_FLOW else 0
+    item.setdefault("数据模式", "本地演示订单")
+    return item
+
+
+def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
+    """客户只看当前会话订单；工作人员可读取本机演示订单表。"""
+    if "customer_orders" not in st.session_state:
+        st.session_state["customer_orders"] = []
+    own = st.session_state["customer_orders"]
+    if not include_saved:
+        return own
+    records = {str(item.get("订单编号")): item for item in own}
+    paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
+    for path in paths:
+        try:
+            for raw in pd.read_excel(path).fillna("").to_dict("records"):
+                item = _parse_record(raw, path)
+                records[str(item.get("订单编号"))] = item
+        except Exception:
+            continue
+    return sorted(records.values(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
+
+
+def create_order(payload: dict[str, Any]) -> dict[str, Any]:
+    own_orders = init_orders()
+    now = datetime.now()
+    longitude = float(payload["经度"]) if payload.get("经度") not in (None, "") else None
+    latitude = float(payload["纬度"]) if payload.get("纬度") not in (None, "") else None
+    quote = estimate_delivery_fee(str(payload.get("品类", "")), float(payload.get("配送重量_kg", 0)), longitude, latitude)
+    product = str(payload.get("品类", ""))
+    earliest = str(payload.get("最早到达", "00:00"))
+    latest = str(payload.get("最晚到达", "00:00"))
+    noodle = float(payload.get("鲜面需求量_kg", payload.get("配送重量_kg", 0)) if product == "鲜面条" else 0)
+    ginger = float(payload.get("生姜需求量_kg", 0))
+    garlic = float(payload.get("大蒜需求量_kg", 0))
+    enriched = {
+        "期望窗开始_分钟": minutes_from_midnight(earliest),
+        "期望窗结束_分钟": minutes_from_midnight(latest),
+        "允许窗开始_分钟": max(0, minutes_from_midnight(earliest) - 30),
+        "允许窗结束_分钟": min(1439, minutes_from_midnight(latest) + 30),
+        "服务时间_分钟": service_minutes(product, noodle, ginger, garlic),
+    }
+    order = {"订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:4].upper()}", "提交时间": now.strftime("%Y-%m-%d %H:%M:%S"), "状态": STATUS_FLOW[1] if longitude is not None else STATUS_FLOW[0], "状态序号": 1 if longitude is not None else 0, "数据模式": "竞赛流程演示", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": _route_geojson(longitude, latitude), **payload, **enriched}
+    try:
+        order["保存路径"] = save_order_to_excel(order)
+        order["保存状态"] = "已保存到本机演示订单表"
+    except Exception as exc:
+        order["保存状态"] = f"本机保存失败：{exc}"
+    own_orders.insert(0, order)
+    return order
+
+
+def find_order(order_id: str, include_saved: bool = False) -> dict[str, Any] | None:
+    return next((item for item in init_orders(include_saved) if item.get("订单编号") == order_id), None)
+
+
+def persist_order(order: dict[str, Any]) -> None:
+    path_text = order.get("保存路径")
+    if not path_text:
+        return
+    try:
+        path = ROOT / str(path_text)
+        frame = pd.read_excel(path)
+        mask = frame["订单编号"].astype(str) == str(order["订单编号"])
+        if mask.any():
+            for key, value in order.items():
+                if key not in {"状态序号", "保存路径", "保存状态"}:
+                    frame.loc[mask, key] = _excel_value(value)
+            frame.to_excel(path, index=False)
+    except Exception:
+        pass
+
+
+def advance_order(order: dict[str, Any]) -> None:
+    index = min(int(order.get("状态序号", 0)) + 1, len(STATUS_FLOW) - 1)
+    order["状态序号"], order["状态"] = index, STATUS_FLOW[index]
+    persist_order(order)
+
+
+def set_order_status(order: dict[str, Any], status: str) -> None:
+    if status not in STATUS_FLOW:
+        raise ValueError(f"未知订单状态：{status}")
+    order["状态"] = status
+    order["状态序号"] = STATUS_FLOW.index(status)
+    persist_order(order)
