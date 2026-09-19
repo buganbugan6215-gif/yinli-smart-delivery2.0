@@ -3,6 +3,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
+from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.order_state import DEPOT_LAT, DEPOT_LON, STATUS_FLOW, find_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -41,7 +42,7 @@ route = order.get("路线GeoJSON")
 status_index = int(order.get("状态序号", 0))
 if status_index < STATUS_FLOW.index("配送途中"):
     st.info("车辆尚未发出。工作人员点击“车辆发出，开始配送”后，路线和车辆位置将在这里显示。")
-elif route and route.get("features"):
+elif route and is_dijkstra_route(order):
     folium.GeoJson(
         route,
         name="本订单配送路线",
@@ -67,9 +68,9 @@ elif route and route.get("features"):
     except (KeyError, IndexError, TypeError, ValueError):
         pass
 else:
-    st.info("该订单尚未取得坐标，暂不能生成演示调度线。请返回订单页补充经纬度。")
+    st.info("该订单尚未导入 Dijkstra 路网精算结果，暂不显示路线。请由工作人员完成本机精算后上传 formal_result.json。")
 
 add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
 folium.LayerControl(collapsed=True, position="topright").add_to(fmap)
 st_folium(fmap, use_container_width=True, height=650, returned_objects=[])
-st.caption("蓝线为本订单的演示调度线；橙色车辆为配送进度示意，不是司机 GPS 实时定位。接入本机精算后会替换为正式 Dijkstra 道路路线。")
+st.caption("蓝线为本订单基于货车路网节点计算的 Dijkstra 路径；橙色车辆为配送进度示意，不是司机 GPS 实时定位。")

@@ -1,10 +1,12 @@
 from io import BytesIO
+import json
 
 import pandas as pd
 import streamlit as st
 
 from 功能组件_页面共用代码.data_loader import load_site_data
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, init_orders, pricing_settings, save_pricing_settings, set_order_status
+from 功能组件_页面共用代码.formal_dispatch import build_formal_job, is_dijkstra_route, parse_formal_result
+from 功能组件_页面共用代码.order_state import STATUS_FLOW, init_orders, persist_order, pricing_settings, save_pricing_settings, set_order_status
 from 功能组件_页面共用代码.ui import fmt_money, inject_css, page_title, render_sidebar, require_staff_access
 
 
@@ -50,10 +52,40 @@ with order_tab:
             st.markdown(f"<div class='ops-order motion-reveal'><span>{chosen['品类']}</span><h3>{chosen['客户名称']}</h3><p>{float(chosen['配送重量_kg']):,.0f} kg · {chosen['期望送达']}</p><b>{chosen['状态']}</b></div>", unsafe_allow_html=True)
         with right:
             st.markdown("#### 配送流程操作")
-            st.caption("先确认方案，再进入备货、配送和送达。")
-            actions = [("确认配送方案并开始备货", "仓库备货中"), ("车辆发出，开始配送", "配送途中"), ("确认货物已送达", "已送达")]
-            for label, target in actions:
-                disabled = STATUS_FLOW.index(chosen.get("状态", STATUS_FLOW[0])) >= STATUS_FLOW.index(target)
+            st.caption("必须导入本机 Dijkstra 路网结果后，才允许确认方案与发车。")
+            formal_ready = is_dijkstra_route(chosen)
+            if not formal_ready:
+                st.download_button(
+                    "1. 下载本机 Dijkstra 精算任务",
+                    build_formal_job(chosen),
+                    file_name=f"{chosen['订单编号']}_Dijkstra任务.zip",
+                    mime="application/zip",
+                    use_container_width=True,
+                )
+                uploaded = st.file_uploader("2. 上传本机求解结果", type=["json", "zip"], key=f"formal_{chosen['订单编号']}")
+                if uploaded and st.button("导入 Dijkstra 路网结果", use_container_width=True, key=f"import_{chosen['订单编号']}"):
+                    try:
+                        result = parse_formal_result(uploaded.getvalue(), uploaded.name)
+                        if str(result.get("订单编号", chosen["订单编号"])) != chosen["订单编号"]:
+                            raise ValueError("结果文件的订单编号与当前订单不一致。")
+                        chosen["路线GeoJSON"] = result["路线GeoJSON"]
+                        chosen["路网最短距离_km"] = result.get("路网最短距离_km", "")
+                        chosen["路网节点"] = result.get("路网节点", {})
+                        chosen["数据模式"] = "Dijkstra 路网精算结果"
+                        persist_order(chosen)
+                        st.success("已导入 Dijkstra 路网结果，现在可确认方案。")
+                        st.rerun(scope="fragment")
+                    except (ValueError, json.JSONDecodeError) as exc:
+                        st.error(f"导入失败：{exc}")
+            else:
+                st.success(f"已导入 Dijkstra 路网结果{(' · ' + str(chosen.get('路网最短距离_km')) + ' km') if chosen.get('路网最短距离_km') != '' else ''}")
+            current = STATUS_FLOW.index(chosen.get("状态", STATUS_FLOW[0]))
+            actions = [
+                ("确认配送方案并开始备货", "仓库备货中", current >= STATUS_FLOW.index("仓库备货中") or not formal_ready),
+                ("车辆发出，开始配送", "配送途中", current != STATUS_FLOW.index("仓库备货中") or not formal_ready),
+                ("确认货物已送达", "已送达", current != STATUS_FLOW.index("配送途中")),
+            ]
+            for label, target, disabled in actions:
                 if st.button(label, use_container_width=True, type="primary" if target == "仓库备货中" else "secondary", disabled=disabled, key=f"status_{chosen['订单编号']}_{target}"):
                     set_order_status(chosen, target)
                     st.success(f"订单状态已更新为：{target}")

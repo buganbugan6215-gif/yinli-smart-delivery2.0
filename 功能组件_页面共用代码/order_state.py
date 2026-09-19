@@ -275,7 +275,7 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
         "允许窗结束_分钟": min(1439, minutes_from_midnight(latest) + 30),
         "服务时间_分钟": service_minutes(product, noodle, ginger, garlic),
     }
-    order = {"订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:4].upper()}", "提交时间": now.strftime("%Y-%m-%d %H:%M:%S"), "状态": STATUS_FLOW[1] if longitude is not None else STATUS_FLOW[0], "状态序号": 1 if longitude is not None else 0, "数据模式": "竞赛流程演示", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": _route_geojson(longitude, latitude), **payload, **enriched}
+    order = {"订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:4].upper()}", "提交时间": now.strftime("%Y-%m-%d %H:%M:%S"), "状态": STATUS_FLOW[1] if longitude is not None else STATUS_FLOW[0], "状态序号": 1 if longitude is not None else 0, "数据模式": "等待本机 Dijkstra 精算", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": None, **payload, **enriched}
     try:
         order["保存路径"] = save_order_to_excel(order)
         order["保存状态"] = "已保存到本机演示订单表"
@@ -320,14 +320,6 @@ def set_order_status(order: dict[str, Any], status: str) -> None:
     order["状态"] = status
     order["状态序号"] = STATUS_FLOW.index(status)
     if status == "配送途中":
-        # 演示流程在发车时补全调度线与车辆标识；正式系统会由求解器写入真实道路路线。
-        if not order.get("路线GeoJSON"):
-            try:
-                longitude = float(order.get("经度"))
-                latitude = float(order.get("纬度"))
-                order["路线GeoJSON"] = _route_geojson(longitude, latitude)
-            except (TypeError, ValueError):
-                pass
         if not order.get("车辆编号"):
             order["车辆编号"] = f"YL-冷链-{(sum(ord(c) for c in str(order.get('订单编号', ''))) % 8) + 1:02d}"
         order["发车时间"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
