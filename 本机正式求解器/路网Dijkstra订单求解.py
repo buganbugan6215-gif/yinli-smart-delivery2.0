@@ -8,7 +8,7 @@ from pathlib import Path
 import geopandas as gpd
 import networkx as nx
 import pandas as pd
-from shapely.geometry import LineString, Point, mapping
+from shapely.geometry import Point
 
 DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
 
@@ -62,18 +62,33 @@ def main() -> None:
     depot = Point(DEPOT_LON, DEPOT_LAT)
     depot_node, depot_snap = nearest_node(depot, coordinates, lines.crs)
     labels = ["配送中心"] + orders["订单编号"].astype(str).tolist()
+    business_points = [depot] + [Point(float(row["经度"]), float(row["纬度"])) for _, row in orders.iterrows()]
+    business_nodes = [depot_node]
+    snap_distances = [depot_snap]
+    for point in business_points[1:]:
+        node, snap_distance = nearest_node(point, coordinates, lines.crs)
+        business_nodes.append(node)
+        snap_distances.append(snap_distance)
     matrix = [[0.0 for _ in labels] for _ in labels]
+    # 对每一个业务点跑一次单源 Dijkstra，构成有向完整距离矩阵。
+    for source_index, source_node in enumerate(business_nodes):
+        lengths = nx.single_source_dijkstra_path_length(graph, source_node, weight="weight")
+        for target_index, target_node in enumerate(business_nodes):
+            if source_index == target_index:
+                continue
+            if target_node not in lengths:
+                raise RuntimeError(f"从 {labels[source_index]} 到 {labels[target_index]} 在货车路网中不可达")
+            matrix[source_index][target_index] = float(lengths[target_node] + snap_distances[source_index] + snap_distances[target_index])
     features = []
     results = []
     for position, row in orders.reset_index(drop=True).iterrows():
-        target = Point(float(row["经度"]), float(row["纬度"]))
-        target_node, target_snap = nearest_node(target, coordinates, lines.crs)
+        target = business_points[position + 1]
+        target_node, target_snap = business_nodes[position + 1], snap_distances[position + 1]
         try:
             distance, path = nx.single_source_dijkstra(graph, depot_node, target_node, weight="weight")
         except nx.NetworkXNoPath as exc:
             raise RuntimeError(f"订单 {row['订单编号']} 无法通过货车路网到达") from exc
         total_m = float(distance + depot_snap + target_snap)
-        matrix[0][position + 1] = total_m
         geometry = {"type": "LineString", "coordinates": route_coordinates(graph, path, depot, target)}
         feature = {"type": "Feature", "properties": {"订单编号": str(row["订单编号"]), "route_mode": "Dijkstra路网最短路径", "路网最短距离_m": round(total_m, 1), "配送中心吸附距离_m": round(depot_snap, 1), "客户吸附距离_m": round(target_snap, 1)}, "geometry": geometry}
         features.append(feature)
