@@ -7,6 +7,40 @@ from typing import Any
 
 import pandas as pd
 
+DEPOT_COORDINATES = [104.26104981303031, 30.851137170192068]
+
+
+def plan_to_geojson(plan: dict[str, Any]) -> dict[str, Any]:
+    """把页面方案转换为线路；快速方案只表示访问顺序连线。"""
+    customers = plan.get("customers")
+    arrivals = plan.get("arrivals")
+    if not isinstance(customers, pd.DataFrame) or not isinstance(arrivals, pd.DataFrame) or customers.empty or arrivals.empty:
+        return {"type": "FeatureCollection", "features": []}
+    if not {"客户编号", "经度", "纬度"}.issubset(customers.columns) or not {"车辆编号", "客户编号"}.issubset(arrivals.columns):
+        return {"type": "FeatureCollection", "features": []}
+    lookup = {
+        str(row["客户编号"]): [float(row["经度"]), float(row["纬度"])]
+        for _, row in customers.dropna(subset=["经度", "纬度"]).iterrows()
+    }
+    features = []
+    for vehicle, group in arrivals.groupby("车辆编号", sort=False):
+        coordinates = [DEPOT_COORDINATES]
+        coordinates.extend(point for customer_id in group["客户编号"].tolist() if (point := lookup.get(str(customer_id))))
+        coordinates.append(DEPOT_COORDINATES)
+        if len(coordinates) > 2:
+            features.append({"type": "Feature", "properties": {"vehicle": str(vehicle), "mode": plan.get("mode", "方案")}, "geometry": {"type": "LineString", "coordinates": coordinates}})
+    return {"type": "FeatureCollection", "features": features}
+
+
+def plan_workbook_bytes(plan: dict[str, Any]) -> bytes:
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        pd.DataFrame([plan.get("summary", {})]).to_excel(writer, sheet_name="方案摘要", index=False)
+        plan.get("routes", pd.DataFrame()).to_excel(writer, sheet_name="车辆路线", index=False)
+        plan.get("arrivals", pd.DataFrame()).to_excel(writer, sheet_name="客户到达", index=False)
+        plan.get("customers", pd.DataFrame()).to_excel(writer, sheet_name="客户数据", index=False)
+    return output.getvalue()
+
 
 def _number(value: Any, default: float = 0.0) -> float:
     try:

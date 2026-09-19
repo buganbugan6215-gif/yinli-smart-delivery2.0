@@ -28,21 +28,26 @@ phone = c4.text_input("联系电话", placeholder="用于配送联系")
 
 if "order_coordinates" not in st.session_state:
     st.session_state["order_coordinates"] = None
+if st.session_state.get("geocoded_address") != address.strip():
+    st.session_state["order_coordinates"] = None
 if st.button("识别地址坐标", disabled=not address.strip()):
-    coordinates = geocode_address(address)
+    with st.spinner("正在核对地址..."):
+        coordinates = geocode_address(address)
     st.session_state["order_coordinates"] = coordinates
+    st.session_state["geocoded_address"] = address.strip()
     if not coordinates:
-        st.warning("未识别到坐标。可补充街道和门牌号后重试，或手工填写下方经纬度。")
+        st.warning("未识别到坐标。请补充城市、区县、街道或门牌号后重试，也可手工填写坐标。")
 coordinates = st.session_state.get("order_coordinates")
 geo_left, geo_right = st.columns(2)
 manual_lon = geo_left.number_input("经度（识别失败时可手工填写）", value=float(coordinates[0]) if coordinates else 0.0, format="%.6f")
 manual_lat = geo_right.number_input("纬度（识别失败时可手工填写）", value=float(coordinates[1]) if coordinates else 0.0, format="%.6f")
 if manual_lon and manual_lat:
-    coordinates = (manual_lon, manual_lat, coordinates[2] if coordinates else "手工填写坐标")
+    coordinates = (manual_lon, manual_lat, coordinates[2] if coordinates else "手工填写坐标", coordinates[3] if coordinates and len(coordinates) > 3 else "手工坐标")
 if coordinates:
-    st.success(f"配送坐标：经度 {coordinates[0]:.6f}，纬度 {coordinates[1]:.6f}")
+    st.success(f"已通过{coordinates[3]}定位：{coordinates[2]}")
+    st.caption(f"WGS84 坐标：{coordinates[0]:.6f}, {coordinates[1]:.6f}。提交前请核对识别地点是否与收货地址一致。")
 else:
-    st.caption("地址识别为主动请求，结果缓存 24 小时。未联网时可填写经纬度后继续下单。")
+    st.caption("配置高德 Web 服务密钥后优先使用高德；未配置时自动使用 OpenStreetMap。识别结果缓存 24 小时。")
 
 st.markdown("### 配送内容")
 product = st.segmented_control("配送品类", ["鲜面条", "姜蒜"], default="鲜面条", selection_mode="single")
@@ -83,12 +88,12 @@ if submitted:
             "最早到达": expected_time.strftime('%H:%M'), "最晚到达": latest_time.strftime('%H:%M'),
             "期望送达": f"{delivery_date} {expected_time.strftime('%H:%M')}",
             "最晚送达": f"{delivery_date} {latest_time.strftime('%H:%M')}", "预估费用_元": quote["预估费用_元"],
-            "经度": coordinates[0] if coordinates else "", "纬度": coordinates[1] if coordinates else "", "地址识别结果": coordinates[2] if coordinates else "未识别",
+            "经度": coordinates[0] if coordinates else "", "纬度": coordinates[1] if coordinates else "", "地址识别结果": coordinates[2] if coordinates else "未识别", "地址识别服务": coordinates[3] if coordinates else "未识别",
         })
         st.success(f"订单 {order['订单编号']} 已提交，服务时间 {order['服务时间_分钟']} 分钟，预估费用 ¥ {order['预估费用_元']:,.2f}。订单正在等待工作人员确认配送方案。")
         st.session_state["active_order_id"] = order["订单编号"]
         if order.get("保存状态") == "已保存到本机演示订单表":
-            st.caption("本机演示订单已保存。客户追踪页只显示当前会话提交的订单。")
+            st.caption("订单已保存。退出后仍可使用订单编号和联系电话后四位查询进度。")
         else:
             st.warning("订单已进入当前会话，但写入 Excel 失败。工作人员可从当前订单列表导出。")
         st.page_link("pages/订单追踪.py", label="查看订单进度", use_container_width=True)

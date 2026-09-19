@@ -26,11 +26,15 @@ metrics[3].metric("参考方案费用", fmt_money(summary.get("total_cost")))
 order_tab, parameter_tab, interface_tab = st.tabs(["订单与状态", "车辆与成本参数", "算法接口"])
 
 with order_tab:
-    st.markdown("### 当日客户订单")
-    if not orders:
-        st.markdown("<div class='empty-stage motion-reveal'><h3>当前没有客户订单</h3><p>客户提交需求后，订单会按日期和品类进入这里。</p></div>", unsafe_allow_html=True)
-    else:
-        frame = pd.DataFrame(orders)
+    @st.fragment(run_every="8s")
+    def render_live_orders() -> None:
+        live_orders = init_orders(include_saved=True)
+        st.markdown("### 当日客户订单")
+        st.caption("每 8 秒自动同步一次，其他工作人员更新的状态会出现在本页。")
+        if not live_orders:
+            st.markdown("<div class='empty-stage motion-reveal'><h3>当前没有客户订单</h3><p>客户提交需求后，订单会按日期和品类进入这里。</p></div>", unsafe_allow_html=True)
+            return
+        frame = pd.DataFrame(live_orders)
         show = [c for c in ["订单编号", "客户名称", "品类", "鲜面需求量_kg", "生姜需求量_kg", "大蒜需求量_kg", "期望窗开始_分钟", "期望窗结束_分钟", "服务时间_分钟", "状态"] if c in frame.columns]
         st.dataframe(frame[show], use_container_width=True, hide_index=True)
         export = BytesIO()
@@ -38,23 +42,23 @@ with order_tab:
             for product, sheet in [("鲜面条", "鲜面订单"), ("姜蒜", "姜蒜订单")]:
                 frame[frame["品类"] == product].to_excel(writer, sheet_name=sheet, index=False)
         st.download_button("下载当前订单 Excel", export.getvalue(), "银犁当日客户订单.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-
-        labels = [f"{item['订单编号']} · {item['客户名称']} · {item['状态']}" for item in orders]
-        chosen_label = st.selectbox("选择需要处理的订单", labels)
-        chosen = orders[labels.index(chosen_label)]
+        labels = [f"{item['订单编号']} · {item['客户名称']} · {item['状态']}" for item in live_orders]
+        chosen_label = st.selectbox("选择需要处理的订单", labels, key="live_order_choice")
+        chosen = live_orders[labels.index(chosen_label)]
         left, right = st.columns([.8, 1.2], gap="large")
         with left:
-            st.markdown(f"<div class='ops-order motion-reveal'><span>{chosen['品类']}</span><h3>{chosen['客户名称']}</h3><p>{chosen['配送重量_kg']:,.0f} kg · {chosen['期望送达']}</p><b>{chosen['状态']}</b></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ops-order motion-reveal'><span>{chosen['品类']}</span><h3>{chosen['客户名称']}</h3><p>{float(chosen['配送重量_kg']):,.0f} kg · {chosen['期望送达']}</p><b>{chosen['状态']}</b></div>", unsafe_allow_html=True)
         with right:
             st.markdown("#### 配送流程操作")
-            st.caption("按钮用于竞赛流程展示；正式系统应由调度与车辆设备事件自动驱动。")
+            st.caption("先确认方案，再进入备货、配送和送达。")
             actions = [("确认配送方案并开始备货", "仓库备货中"), ("车辆发出，开始配送", "配送途中"), ("确认货物已送达", "已送达")]
             for label, target in actions:
                 disabled = STATUS_FLOW.index(chosen.get("状态", STATUS_FLOW[0])) >= STATUS_FLOW.index(target)
-                if st.button(label, use_container_width=True, type="primary" if target == "仓库备货中" else "secondary", disabled=disabled):
+                if st.button(label, use_container_width=True, type="primary" if target == "仓库备货中" else "secondary", disabled=disabled, key=f"status_{chosen['订单编号']}_{target}"):
                     set_order_status(chosen, target)
                     st.success(f"订单状态已更新为：{target}")
-                    st.rerun()
+                    st.rerun(scope="fragment")
+    render_live_orders()
 
 with parameter_tab:
     st.markdown("### 调度参数")

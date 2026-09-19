@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import sqlite3
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -16,6 +17,7 @@ STATUS_FLOW = ["订单已提交", "方案待确认", "仓库备货中", "配送�
 ROOT = Path(__file__).resolve().parents[1]
 ORDER_DATA_DIR = ROOT / "客户订单数据"
 SETTINGS_PATH = ORDER_DATA_DIR / "调价参数.json"
+ORDER_DB_PATH = ORDER_DATA_DIR / "订单状态.db"
 DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
 
 
@@ -77,6 +79,28 @@ def haversine_km(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     return 6371.0088 * 2 * asin(sqrt(a))
 
 
+def gcj02_to_wgs84(lon: float, lat: float) -> tuple[float, float]:
+    """将高德返回的 GCJ-02 坐标近似转换为路网使用的 WGS84。"""
+    from math import cos, pi, sin, sqrt
+    if not (72.004 <= lon <= 137.8347 and 0.8293 <= lat <= 55.8271):
+        return lon, lat
+    x, y = lon - 105.0, lat - 35.0
+    dlat = -100.0 + 2.0*x + 3.0*y + 0.2*y*y + 0.1*x*y + 0.2*sqrt(abs(x))
+    dlat += (20.0*sin(6.0*x*pi) + 20.0*sin(2.0*x*pi))*2.0/3.0
+    dlat += (20.0*sin(y*pi) + 40.0*sin(y/3.0*pi))*2.0/3.0
+    dlat += (160.0*sin(y/12.0*pi) + 320*sin(y*pi/30.0))*2.0/3.0
+    dlon = 300.0 + x + 2.0*y + 0.1*x*x + 0.1*x*y + 0.1*sqrt(abs(x))
+    dlon += (20.0*sin(6.0*x*pi) + 20.0*sin(2.0*x*pi))*2.0/3.0
+    dlon += (20.0*sin(x*pi) + 40.0*sin(x/3.0*pi))*2.0/3.0
+    dlon += (150.0*sin(x/12.0*pi) + 300.0*sin(x/30.0*pi))*2.0/3.0
+    radlat = lat / 180.0 * pi
+    magic = 1 - 0.00669342162296594323 * sin(radlat) ** 2
+    sqrtmagic = sqrt(magic)
+    dlat = (dlat * 180.0) / ((6335552.717000426 / (magic * sqrtmagic)) * pi)
+    dlon = (dlon * 180.0) / ((6378245.0 / sqrtmagic * cos(radlat)) * pi)
+    return lon * 2 - (lon + dlon), lat * 2 - (lat + dlat)
+
+
 def estimate_delivery_fee(product: str, quantity_kg: float, longitude: float | None = None, latitude: float | None = None) -> dict[str, float]:
     """报价由起步价、品类重量价与参考里程价组成。"""
     rates = pricing_settings()
@@ -86,22 +110,89 @@ def estimate_delivery_fee(product: str, quantity_kg: float, longitude: float | N
     return {"起步价_元": rates["起步价_元"], "重量价_元": round(weight, 2), "参考距离_km": round(distance, 2), "里程价_元": round(mileage, 2), "预估费用_元": round(rates["起步价_元"] + weight + mileage, 2)}
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def geocode_address(address: str) -> tuple[float, float, str] | None:
-    """仅在客户主动点击识别时访问外部服务，且缓存 24 小时。"""
-    query = address.strip()
-    if len(query) < 6:
-        return None
-    url = "https://nominatim.openstreetmap.org/search?" + urlencode({"q": query + " 成都", "format": "jsonv2", "limit": 1, "countrycodes": "cn"})
+def _secret(name: str) -> str | None:
+    value = os.getenv(name)
+    if value:
+        return value
     try:
-        request = Request(url, headers={"User-Agent": "YinliDeliveryContest/1.0"})
-        with urlopen(request, timeout=6) as response:
-            result = json.loads(response.read().decode("utf-8"))
-        if result:
-            return float(result[0]["lon"]), float(result[0]["lat"]), str(result[0].get("display_name", query))
-    except Exception:
+        return st.secrets.get(name)
+    except (FileNotFoundError, RuntimeError):
         return None
-    return None
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def geocode_address(address: str) -> tuple[float, float, str, str] | None:
+    """优先高德地理编码，未配置密钥时回退到 OpenStreetMap。"""
+    query = address.strip()
+    if len(query) < 2:
+        return None
+    amap_key = _secret("AMAP_WEB_SERVICE_KEY")
+    if amap_key:
+        url = "https://restapi.amap.com/v3/geocode/geo?" + urlencode({"address": query, "city": "成都", "key": amap_key, "output": "JSON"})
+        try:
+            with urlopen(Request(url, headers={"User-Agent": "YinliDelivery/2.0"}), timeout=8) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            geocodes = payload.get("geocodes") or []
+            if payload.get("status") == "1" and geocodes:
+                lon, lat = (float(value) for value in geocodes[0]["location"].split(","))
+                lon, lat = gcj02_to_wgs84(lon, lat)
+                formatted = str(geocodes[0].get("formatted_address") or query)
+                return lon, lat, formatted, "高德地图"
+        except Exception:
+            pass
+
+    candidates = [query, f"四川省成都市{query}", f"{query} 成都 四川"]
+    seen: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        url = "https://nominatim.openstreetmap.org/search?" + urlencode({"q": candidate, "format": "jsonv2", "limit": 5, "countrycodes": "cn", "addressdetails": 1})
+        try:
+            request = Request(url, headers={"User-Agent": "YinliDelivery/2.0 (competition-demo)"})
+            with urlopen(request, timeout=8) as response:
+                results.extend(json.loads(response.read().decode("utf-8")))
+        except Exception:
+            continue
+    if not results:
+        return None
+    def score(item: dict[str, Any]) -> tuple[int, float]:
+        text = str(item.get("display_name", ""))
+        address_info = item.get("address") or {}
+        in_chengdu = "成都" in text or "成都" in json.dumps(address_info, ensure_ascii=False)
+        return (1 if in_chengdu else 0, float(item.get("importance", 0)))
+    best = max(results, key=score)
+    try:
+        return float(best["lon"]), float(best["lat"]), str(best.get("display_name", query)), "OpenStreetMap"
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _db_connection() -> sqlite3.Connection:
+    ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(ORDER_DB_PATH, timeout=10)
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
+    return connection
+
+
+def save_order_record(order: dict[str, Any]) -> None:
+    payload = json.dumps(order, ensure_ascii=False, default=str)
+    with _db_connection() as connection:
+        connection.execute(
+            "INSERT INTO orders(order_id, updated_at, payload) VALUES (?, ?, ?) ON CONFLICT(order_id) DO UPDATE SET updated_at=excluded.updated_at, payload=excluded.payload",
+            (str(order.get("订单编号")), datetime.now().isoformat(timespec="seconds"), payload),
+        )
+
+
+def load_order_records() -> list[dict[str, Any]]:
+    try:
+        with _db_connection() as connection:
+            rows = connection.execute("SELECT payload FROM orders ORDER BY updated_at DESC").fetchall()
+        return [json.loads(row[0]) for row in rows]
+    except Exception:
+        return []
 
 
 def _route_geojson(longitude: float | None, latitude: float | None) -> dict[str, Any] | None:
@@ -141,13 +232,13 @@ def _parse_record(item: dict[str, Any], path: Path) -> dict[str, Any]:
 
 
 def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
-    """客户只看当前会话订单；工作人员可读取本机演示订单表。"""
+    """当前会话保持快捷访问；按订单号查询和工作人员页面读取共享记录。"""
     if "customer_orders" not in st.session_state:
         st.session_state["customer_orders"] = []
     own = st.session_state["customer_orders"]
     if not include_saved:
         return own
-    records = {str(item.get("订单编号")): item for item in own}
+    records: dict[str, dict[str, Any]] = {}
     paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
     for path in paths:
         try:
@@ -156,6 +247,12 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
                 records[str(item.get("订单编号"))] = item
         except Exception:
             continue
+    # Excel 是归档副本；SQLite 是运行中的共享状态，会覆盖较旧的归档值。
+    for item in load_order_records():
+        records[str(item.get("订单编号"))] = item
+    # 当前访问刚产生的尚未落库状态拥有最高优先级。
+    for item in own:
+        records[str(item.get("订单编号"))] = item
     return sorted(records.values(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
 
 
@@ -184,6 +281,7 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
         order["保存状态"] = "已保存到本机演示订单表"
     except Exception as exc:
         order["保存状态"] = f"本机保存失败：{exc}"
+    save_order_record(order)
     own_orders.insert(0, order)
     return order
 
@@ -193,6 +291,7 @@ def find_order(order_id: str, include_saved: bool = False) -> dict[str, Any] | N
 
 
 def persist_order(order: dict[str, Any]) -> None:
+    save_order_record(order)
     path_text = order.get("保存路径")
     if not path_text:
         return
