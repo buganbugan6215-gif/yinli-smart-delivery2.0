@@ -4,7 +4,7 @@ from streamlit_folium import st_folium
 
 from 功能组件_页面共用代码.maps import add_customer_points, add_route_features, add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.data_loader import load_site_data
-from 功能组件_页面共用代码.order_state import init_orders
+from 功能组件_页面共用代码.order_state import DEPOT_LAT, DEPOT_LON, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
 
 
@@ -22,6 +22,16 @@ for order in orders:
     route = order.get("路线GeoJSON")
     if route and route.get("features"):
         folium.GeoJson(route, name=f"演示订单 {order['订单编号']}", style_function=lambda _: {"color": "#ff8133", "weight": 4, "opacity": 0.9}, tooltip=f"演示订单：{order['订单编号']}").add_to(fmap)
+        if order.get("状态") == "配送途中":
+            try:
+                destination = route["features"][0]["geometry"]["coordinates"][-1]
+                folium.Marker(
+                    [(DEPOT_LAT + float(destination[1])) / 2, (DEPOT_LON + float(destination[0])) / 2],
+                    tooltip=f"{order.get('车辆编号', '配送车辆')} · 配送途中示意位置",
+                    icon=folium.Icon(color="orange", icon="truck", prefix="fa"),
+                ).add_to(fmap)
+            except (KeyError, IndexError, TypeError, ValueError):
+                pass
 add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
 folium.LayerControl(collapsed=True).add_to(fmap)
 st_folium(fmap, use_container_width=True, height=650, returned_objects=[])

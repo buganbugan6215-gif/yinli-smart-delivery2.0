@@ -16,7 +16,8 @@ with own_tab:
         ids = [item["订单编号"] for item in orders]
         default_id = st.session_state.get("active_order_id", ids[0])
         selected = st.selectbox("选择订单", ids, index=ids.index(default_id) if default_id in ids else 0)
-        order = find_order(selected)
+        # 优先读取共享记录，保证工作人员发车后的新状态会显示给客户。
+        order = find_order(selected, include_saved=True)
     else:
         st.info("当前浏览器还没有提交过订单，可切换到“使用订单号查询”。")
 with lookup_tab:
