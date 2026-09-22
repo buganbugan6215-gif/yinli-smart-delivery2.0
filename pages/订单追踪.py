@@ -1,5 +1,6 @@
 import streamlit as st
 
+from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, find_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -38,13 +39,32 @@ with lookup_tab:
 
 if not order:
     st.markdown("<div class='empty-stage motion-focus'><h2>输入订单号即可继续查看。</h2><p>订单号会在提交成功后显示，请同时准备联系电话后四位。</p></div>", unsafe_allow_html=True)
-    st.page_link("pages/客户下单.py", label="创建配送订单", use_container_width=True)
+    if st.button("创建配送订单", use_container_width=True):
+        st.switch_page("pages/客户下单.py")
     st.stop()
 
 st.session_state["active_order_id"] = order["订单编号"]
 if st.button("刷新最新状态", use_container_width=True):
     st.rerun()
 index = int(order.get("状态序号", 0))
+
+
+@st.fragment(run_every="10s")
+def render_live_eta() -> None:
+    current = find_order(str(order["订单编号"]), include_saved=True) or order
+    snapshot = get_tracking_snapshot(current, demo_factor=60.0)
+    if not snapshot:
+        return
+    st.markdown("### 车辆定位仿真与动态 ETA")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("路程完成度", f"{snapshot['progress']:.0%}")
+    c2.metric("剩余里程", f"{snapshot['remaining_km']:.2f} km")
+    c3.metric("预计到达", snapshot["eta"].strftime("%H:%M"))
+    st.progress(snapshot["progress"])
+    st.info(f"预计到达区间：{snapshot['eta_earliest']:%H:%M} - {snapshot['eta_latest']:%H:%M}")
+    level, message = arrival_risk(current, snapshot)
+    getattr(st, level)(message)
+    st.caption("位置与 ETA 根据已确认的 Dijkstra 路线、发车时间和仿真速度计算，不是车载 GPS 实时数据；客户原预约时间窗不会被修改。")
 
 st.markdown(f"""
 <div class="tracking-head motion-focus">
@@ -56,6 +76,8 @@ st.markdown(f"""
   {''.join(f'<div class="delivery-node {"done" if i <= index else ""}"><span>{i+1}</span><b>{label}</b></div>' for i, label in enumerate(STATUS_FLOW))}
 </div>
 """, unsafe_allow_html=True)
+
+render_live_eta()
 
 left, right = st.columns([1.2, .8], gap="large")
 with left:
@@ -75,7 +97,7 @@ with right:
     st.markdown("### 配送查看")
     st.info("演示模式下可查看订单状态与调度线；正式运行时将以调度系统的车辆和到达信息为准。")
     st.page_link("pages/配送网络地图.py", label="查看我的配送地图", use_container_width=True)
-    if order.get("状态") == "已送达":
-        st.page_link("pages/电子签收.py", label="完成电子签收", use_container_width=True)
+    if order.get("状态") == "已送达" and st.button("完成电子签收", type="primary", use_container_width=True):
+        st.switch_page("pages/电子签收.py")
 
-st.markdown("<div class='demo-banner motion-reveal'><b>本机演示模式</b><span>订单状态和调度线用于流程演示，不展示虚构的实时车辆位置或温度数据。</span></div>", unsafe_allow_html=True)
+st.markdown("<div class='demo-banner motion-reveal'><b>车辆定位仿真</b><span>车辆位置和动态 ETA 基于真实 Dijkstra 路线与发车时间计算，不代表车载 GPS 实时上报，也不展示温度数据。</span></div>", unsafe_allow_html=True)
