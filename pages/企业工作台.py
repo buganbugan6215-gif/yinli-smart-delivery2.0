@@ -43,7 +43,14 @@ with order_tab:
         with pd.ExcelWriter(export, engine="openpyxl") as writer:
             for product, sheet in [("鲜面条", "鲜面订单"), ("姜蒜", "姜蒜订单")]:
                 frame[frame["品类"] == product].to_excel(writer, sheet_name=sheet, index=False)
-        st.download_button("下载当前订单 Excel", export.getvalue(), "银犁当日客户订单.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.download_button(
+            "下载当前订单 Excel",
+            export.getvalue(),
+            "银犁当日客户订单.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="workbench_download_orders",
+        )
         labels = [f"{item['订单编号']} · {item['客户名称']} · {item['状态']}" for item in live_orders]
         chosen_label = st.selectbox("选择需要处理的订单", labels, key="live_order_choice")
         chosen = live_orders[labels.index(chosen_label)]
@@ -61,6 +68,7 @@ with order_tab:
                     file_name=f"{chosen['订单编号']}_Dijkstra任务.zip",
                     mime="application/zip",
                     use_container_width=True,
+                    key=f"workbench_download_dijkstra_{chosen['订单编号']}",
                 )
                 uploaded = st.file_uploader("2. 上传本机求解结果", type=["json", "zip"], key=f"formal_{chosen['订单编号']}")
                 if uploaded and st.button("导入 Dijkstra 路网结果", use_container_width=True, key=f"import_{chosen['订单编号']}"):

@@ -71,6 +71,9 @@ def inject_css() -> None:
         .stButton>button[kind='primary']:hover { background:#e96f24; border-color:#e96f24; color:#fff; }
         .stDownloadButton>button { border-radius:9px; background:var(--brand); color:#fff; font-weight:700; border:1px solid var(--brand); }
         .stDownloadButton>button:hover { background:var(--brand-dark); border-color:var(--brand-dark); transform:translateY(-1px); box-shadow:0 6px 14px rgba(23,80,223,.16); }
+        [class*='st-key-workbench_download_'] .stDownloadButton>button { background:#fff; border-color:#c7d2e2; color:var(--ink); box-shadow:0 4px 12px rgba(35,64,105,.08); }
+        [class*='st-key-workbench_download_'] .stDownloadButton>button:hover { background:#f8faff; border-color:#7897cc; color:#102c6d; box-shadow:0 7px 16px rgba(35,64,105,.13); }
+        [class*='st-key-workbench_download_'] .stDownloadButton>button:active { background:#eef4ff; color:#102c6d; }
         button:focus-visible, a:focus-visible { outline:3px solid rgba(255,129,51,.42)!important; outline-offset:3px!important; }
         [data-testid='stMetric'] { background:var(--surface); border:1px solid var(--line); padding:.85rem 1rem; border-radius:12px; box-shadow:0 4px 12px rgba(35,64,105,.04); }
         [data-testid='stMetricLabel'] { color:var(--muted); }
