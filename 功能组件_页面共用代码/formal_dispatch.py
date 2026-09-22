@@ -23,12 +23,32 @@ def build_formal_job(order: dict[str, Any]) -> bytes:
     task_dir = rf"C:\Users\DELL\Downloads\{order_id}_Dijkstra任务"
     solver = r"D:\A-university\竞赛\第六届四川省物流设计大赛\___网址 - 副本\本机正式求解器\路网Dijkstra订单求解.py"
     road_gpkg = r"D:\A-university\竞赛\第六届四川省物流设计大赛\7.0-修复孤立客户拓扑节点.gpkg"
-    command = f'python "{solver}" --orders "{task_dir}\\orders.xlsx" --road-gpkg "{road_gpkg}" --output "{task_dir}\\result"'
+    # 浏览器遇到同名下载目录会自动附加“(1)”。直接复制命令不能依赖固定目录名，
+    # 因而按订单编号寻找实际解压目录，并使用其中的 orders.xlsx。
+    command = (
+        f'& {{ $task = Get-ChildItem -LiteralPath "$env:USERPROFILE\\Downloads" -Directory '
+        f'| Where-Object {{ $_.Name -like "{order_id}_Dijkstra任务*" -and '
+        f'(Test-Path (Join-Path $_.FullName "orders.xlsx")) }} '
+        f'| Sort-Object LastWriteTime -Descending | Select-Object -First 1; '
+        f'if ($null -eq $task) {{ throw "未找到已解压且含 orders.xlsx 的 {order_id}_Dijkstra任务 文件夹。" }}; '
+        f'python "{solver}" --orders (Join-Path $task.FullName "orders.xlsx") '
+        f'--road-gpkg "{road_gpkg}" --output (Join-Path $task.FullName "result") }}'
+    )
     powershell_script = f'''$ErrorActionPreference = "Stop"
 $solver = "{solver}"
 $orders = Join-Path $PSScriptRoot "orders.xlsx"
 $roadGpkg = "{road_gpkg}"
 $resultDir = Join-Path $PSScriptRoot "result"
+
+if (-not (Test-Path -LiteralPath $orders)) {{
+    throw "未找到 orders.xlsx。请先完整解压下载包，并从解压后的文件夹运行本脚本。"
+}}
+if (-not (Test-Path -LiteralPath $solver)) {{
+    throw "未找到本机求解器：$solver"
+}}
+if (-not (Test-Path -LiteralPath $roadGpkg)) {{
+    throw "未找到路网文件：$roadGpkg"
+}}
 
 Write-Host "正在计算订单 {order_id} 的 Dijkstra 路网最短路径……" -ForegroundColor Cyan
 python $solver --orders $orders --road-gpkg $roadGpkg --output $resultDir
@@ -43,12 +63,11 @@ Read-Host "按回车键关闭窗口"
 
 一、准备
 1. 请先把下载的“{order_id}_Dijkstra任务.zip”全部解压。
-2. 默认解压目录必须是：
-   {task_dir}
+2. 解压后的文件夹名称可以带“(1)”，也可以移动到其他位置；但必须保留 orders.xlsx 与“一键求解.ps1”在同一文件夹。
 3. 确认该目录内存在 orders.xlsx。
 
 二、直接复制到 PowerShell 运行
-请完整复制下一行，不要添加反引号，不要分行：
+请完整复制下一行，不要添加反引号，不要分行。命令会自动识别 Downloads 中实际解压的任务文件夹（包括名称末尾的“(1)”）：
 
 {command}
 
@@ -57,8 +76,7 @@ Read-Host "按回车键关闭窗口"
 如果系统阻止脚本，请使用上面的单行命令。
 
 四、求解结果
-成功后结果保存在：
-{task_dir}\result
+成功后结果保存在任务解压文件夹中的 result 子文件夹；即使文件夹名称带“(1)”也不受影响。
 
 需要上传到企业工作台的文件是：
 {task_dir}\result\formal_result.json
