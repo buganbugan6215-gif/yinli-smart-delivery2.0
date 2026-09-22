@@ -2,7 +2,7 @@ import streamlit as st
 
 from 功能组件_页面共用代码.ui import inject_css, render_sidebar
 
-st.set_page_config(page_title="银犁智慧配送", page_icon="YL", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="银犁智慧配送", page_icon="YL", layout="wide", initial_sidebar_state="collapsed")
 inject_css()
 render_sidebar()
 
@@ -24,11 +24,9 @@ with st.container(key="home_hero"):
         """, unsafe_allow_html=True)
         action_a, action_b = st.columns(2)
         with action_a:
-            if st.button("立即下单", type="primary", use_container_width=True, key="hero_upload"):
-                st.switch_page("pages/客户下单.py")
+            st.page_link("pages/客户下单.py", label="立即下单", use_container_width=True)
         with action_b:
-            if st.button("查询订单", use_container_width=True, key="hero_map"):
-                st.switch_page("pages/订单追踪.py")
+            st.page_link("pages/订单追踪.py", label="查询订单", use_container_width=True)
         st.caption("目前支持鲜面条和姜蒜配送，费用在提交前清楚展示。")
     with hero_visual:
         st.markdown("""
@@ -82,5 +80,4 @@ st.markdown("""
   <div><h2>准备好配送信息，就可以开始下单。</h2><p>提交前显示预估费用，提交后可随时查看进度。</p></div>
 </div>
 """, unsafe_allow_html=True)
-if st.button("填写配送订单", type="primary", use_container_width=True, key="final_upload"):
-    st.switch_page("pages/客户下单.py")
+st.page_link("pages/客户下单.py", label="填写配送订单", use_container_width=True)

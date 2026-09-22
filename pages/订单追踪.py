@@ -38,8 +38,7 @@ with lookup_tab:
 
 if not order:
     st.markdown("<div class='empty-stage motion-focus'><h2>输入订单号即可继续查看。</h2><p>订单号会在提交成功后显示，请同时准备联系电话后四位。</p></div>", unsafe_allow_html=True)
-    if st.button("创建配送订单", use_container_width=True):
-        st.switch_page("pages/客户下单.py")
+    st.page_link("pages/客户下单.py", label="创建配送订单", use_container_width=True)
     st.stop()
 
 st.session_state["active_order_id"] = order["订单编号"]
@@ -76,7 +75,7 @@ with right:
     st.markdown("### 配送查看")
     st.info("演示模式下可查看订单状态与调度线；正式运行时将以调度系统的车辆和到达信息为准。")
     st.page_link("pages/配送网络地图.py", label="查看我的配送地图", use_container_width=True)
-    if order.get("状态") == "已送达" and st.button("完成电子签收", type="primary", use_container_width=True):
-        st.switch_page("pages/电子签收.py")
+    if order.get("状态") == "已送达":
+        st.page_link("pages/电子签收.py", label="完成电子签收", use_container_width=True)
 
 st.markdown("<div class='demo-banner motion-reveal'><b>本机演示模式</b><span>订单状态和调度线用于流程演示，不展示虚构的实时车辆位置或温度数据。</span></div>", unsafe_allow_html=True)

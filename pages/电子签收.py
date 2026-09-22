@@ -11,8 +11,7 @@ page_title("确认签收", "正常到货一键确认；发现异常可在下方�
 
 if not orders:
     st.info("当前没有可签收的订单。")
-    if st.button("返回客户下单", type="primary", use_container_width=True):
-        st.switch_page("pages/客户下单.py")
+    st.page_link("pages/客户下单.py", label="返回客户下单", use_container_width=True)
     st.stop()
 
 ids = [item["订单编号"] for item in orders]

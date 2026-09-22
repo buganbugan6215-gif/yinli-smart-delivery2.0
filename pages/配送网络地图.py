@@ -19,8 +19,7 @@ if not active and own_orders:
 
 if not active:
     st.markdown("<div class='empty-stage motion-focus'><h2>还没有可查看路线的订单。</h2><p>提交配送订单后，调度确认的路线会显示在这里。</p></div>", unsafe_allow_html=True)
-    if st.button("前往客户下单", type="primary", use_container_width=True):
-        st.switch_page("pages/客户下单.py")
+    st.page_link("pages/客户下单.py", label="前往客户下单", use_container_width=True)
     st.stop()
 
 order = find_order(str(active), include_saved=True)
