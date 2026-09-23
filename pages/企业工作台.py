@@ -2,6 +2,9 @@ from io import BytesIO
 from datetime import time
 import pandas as pd
 import streamlit as st
+from 功能组件_页面共用代码.calendar_runtime import ensure_current_calendar
+
+ensure_current_calendar()
 
 from 功能组件_页面共用代码.order_state import init_orders, pricing_settings, save_pricing_settings
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day, batch_closed, cutoff_label

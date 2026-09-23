@@ -1,4 +1,7 @@
 import streamlit as st
+from 功能组件_页面共用代码.calendar_runtime import ensure_current_calendar
+
+ensure_current_calendar()
 
 from 功能组件_页面共用代码.ui import inject_css, render_sidebar
 
@@ -18,7 +21,7 @@ with st.container(key="home_hero"):
     with hero_copy:
         st.markdown("""
         <div class="home-hero-copy">
-          <h1>今日下单，次日统一配送。</h1>
+          <h1>每日八点截单，统一安排配送。</h1>
           <p>北京时间每日 20:00 截止次日订单，20:00 起自动归入后天配送。凭订单编号查询您的配送线路。</p>
         </div>
         """, unsafe_allow_html=True)

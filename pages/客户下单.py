@@ -1,4 +1,7 @@
 import streamlit as st
+from 功能组件_页面共用代码.calendar_runtime import ensure_current_calendar
+
+ensure_current_calendar()
 
 from datetime import time
 from 功能组件_页面共用代码.delivery_calendar import delivery_day, cutoff_label
@@ -14,7 +17,7 @@ page_title("客户下单", "填写收货信息和送达时间，提交前即可�
 
 st.markdown("""
 <div class="service-hero motion-focus">
-  <div><h2>把配送需求交给我们。</h2><p>信息填写完成后，系统按北京时间自动安排次日配送，截止后由工作人员统一安排车辆。</p></div>
+  <div><h2>把配送需求交给我们。</h2><p>北京时间 20:00 前下单安排次日配送，20:00 起安排后天配送；每批订单截止后由工作人员统一安排车辆。</p></div>
   <div class="service-orbit"><span></span><b>订单正在进入配送网络</b></div>
 </div>
 """, unsafe_allow_html=True)
