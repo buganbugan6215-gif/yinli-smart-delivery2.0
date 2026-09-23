@@ -6,6 +6,7 @@ import streamlit as st
 
 from 功能组件_页面共用代码.data_loader import load_site_data
 from 功能组件_页面共用代码.formal_dispatch import build_formal_job, is_dijkstra_route, parse_formal_result
+from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, init_orders, persist_order, pricing_settings, save_pricing_settings, set_order_status
 from 功能组件_页面共用代码.ui import fmt_money, inject_css, page_title, render_sidebar, require_staff_access
 
@@ -87,6 +88,13 @@ with order_tab:
                         st.error(f"导入失败：{exc}")
             else:
                 st.success(f"已导入 Dijkstra 路网结果{(' · ' + str(chosen.get('路网最短距离_km')) + ' km') if chosen.get('路网最短距离_km') != '' else ''}")
+            tracking_snapshot = get_tracking_snapshot(chosen, demo_factor=60.0)
+            if tracking_snapshot:
+                risk_level, risk_message = arrival_risk(chosen, tracking_snapshot)
+                contact = str(chosen.get("联系电话", "")).strip()
+                if risk_level == "error" and contact:
+                    risk_message = f"{risk_message} 客户联系电话：{contact}"
+                getattr(st, risk_level)(risk_message)
             current = STATUS_FLOW.index(chosen.get("状态", STATUS_FLOW[0]))
             actions = [
                 ("确认配送方案并开始备货", "仓库备货中", current >= STATUS_FLOW.index("仓库备货中") or not formal_ready),

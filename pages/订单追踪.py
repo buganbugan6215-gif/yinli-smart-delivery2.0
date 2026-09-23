@@ -1,6 +1,6 @@
 import streamlit as st
 
-from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot
+from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, find_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -62,8 +62,6 @@ def render_live_eta() -> None:
     c3.metric("预计到达", snapshot["eta"].strftime("%H:%M"))
     st.progress(snapshot["progress"])
     st.info(f"预计到达区间：{snapshot['eta_earliest']:%H:%M} - {snapshot['eta_latest']:%H:%M}")
-    level, message = arrival_risk(current, snapshot)
-    getattr(st, level)(message)
     st.caption("位置与 ETA 根据已确认的 Dijkstra 路线、发车时间和仿真速度计算，不是车载 GPS 实时数据；客户原预约时间窗不会被修改。")
 
 st.markdown(f"""
