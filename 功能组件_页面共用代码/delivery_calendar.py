@@ -1,4 +1,4 @@
-"""按北京时间自然日收单；23:59 所在分钟结束后切换下一配送批次。"""
+"""按北京时间收单；每天 20:00 起切换到再下一天的配送批次。"""
 from datetime import date, datetime, time, timedelta, timezone
 
 BEIJING = timezone(timedelta(hours=8), name="Asia/Shanghai")
@@ -14,14 +14,17 @@ def as_beijing(value: datetime | None = None) -> datetime:
 
 
 def delivery_day(value: datetime | None = None) -> date:
-    return as_beijing(value).date() + timedelta(days=1)
+    current = as_beijing(value)
+    days_ahead = 1 if current.time() < time(20, 0) else 2
+    return current.date() + timedelta(days=days_ahead)
 
 
 def batch_closed(day: str | date, value: datetime | None = None) -> bool:
     day = date.fromisoformat(str(day))
-    return as_beijing(value) >= datetime.combine(day, time.min, tzinfo=BEIJING)
+    cutoff_day = day - timedelta(days=1)
+    return as_beijing(value) >= datetime.combine(cutoff_day, time(20, 0), tzinfo=BEIJING)
 
 
 def cutoff_label(day: str | date) -> str:
     day = date.fromisoformat(str(day))
-    return f"{day - timedelta(days=1):%Y-%m-%d} 23:59（北京时间，含该分钟）"
+    return f"{day - timedelta(days=1):%Y-%m-%d} 20:00（北京时间；20:00 起停止接收该配送日订单）"

@@ -19,7 +19,7 @@ with st.container(key="home_hero"):
         st.markdown("""
         <div class="home-hero-copy">
           <h1>今日下单，次日统一配送。</h1>
-          <p>北京时间每日 23:59 截止次日订单，00:00 起自动归入下一配送日。凭订单编号查询您的配送线路。</p>
+          <p>北京时间每日 20:00 截止次日订单，20:00 起自动归入后天配送。凭订单编号查询您的配送线路。</p>
         </div>
         """, unsafe_allow_html=True)
         action_a, action_b = st.columns(2)

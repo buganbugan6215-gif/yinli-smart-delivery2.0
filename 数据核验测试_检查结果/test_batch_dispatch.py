@@ -29,27 +29,27 @@ def samples():
 
 
 @pytest.mark.parametrize("instant,day", [
-    ("2026-09-23T23:58:59+08:00", "2026-09-24"),
-    ("2026-09-23T23:59:00+08:00", "2026-09-24"),
-    ("2026-09-23T23:59:59+08:00", "2026-09-24"),
-    ("2026-09-24T00:00:00+08:00", "2026-09-25"),
-    ("2026-09-24T00:01:00+08:00", "2026-09-25"),
-    ("2026-09-23T16:01:00+00:00", "2026-09-25"),
-    ("2026-12-31T23:59:59+08:00", "2027-01-01"),
+    ("2026-09-23T19:59:00+08:00", "2026-09-24"),
+    ("2026-09-23T19:59:59+08:00", "2026-09-24"),
+    ("2026-09-23T20:00:00+08:00", "2026-09-25"),
+    ("2026-09-23T20:01:00+08:00", "2026-09-25"),
+    ("2026-09-23T12:01:00+00:00", "2026-09-25"),
+    ("2026-12-31T19:59:59+08:00", "2027-01-01"),
+    ("2026-12-31T20:00:00+08:00", "2027-01-02"),
 ])
 def test_cutoff(instant, day):
     assert str(delivery_day(datetime.fromisoformat(instant))) == day
 
 
 def test_deadline_and_peak_boundaries():
-    assert not batch_closed("2026-09-24", datetime(2026, 9, 23, 23, 59, 59))
-    assert batch_closed("2026-09-24", datetime(2026, 9, 24))
+    assert not batch_closed("2026-09-24", datetime(2026, 9, 23, 19, 59, 59))
+    assert batch_closed("2026-09-24", datetime(2026, 9, 23, 20, 0, 0))
     assert travel_minutes(20, 410) == pytest.approx(30)
     assert travel_minutes(20, 530) == pytest.approx(25)
 
 
 def test_creation_ignores_client_date(isolated, monkeypatch):
-    monkeypatch.setattr(state, "beijing_now", lambda: datetime(2026, 9, 23, 16, 1, tzinfo=timezone.utc))
+    monkeypatch.setattr(state, "beijing_now", lambda: datetime(2026, 9, 23, 12, 1, tzinfo=timezone.utc))
     order = state.create_order({"品类": "鲜面条", "配送重量_kg": 30, "经度": 104.26, "纬度": 30.85,
                                 "最早到达": "08:00", "最晚到达": "18:00", "期望送达日期": "2000-01-01"})
     assert order["期望送达日期"] == "2026-09-25"
@@ -79,7 +79,7 @@ def test_atomic_confirm_and_progress(isolated, real_plan):
     orders = samples()
     for o in orders:
         state.save_order_record(o)
-    before = datetime(2026, 9, 23, 23, 59)
+    before = datetime(2026, 9, 23, 19, 59, 59)
     now = datetime(2026, 9, 24, 6)
     with pytest.raises(ValueError, match="截止"):
         batch.confirm_batch(real_plan, before)

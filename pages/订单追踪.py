@@ -45,7 +45,7 @@ st.session_state["active_order_id"] = order["订单编号"]
 if st.button("刷新最新状态", use_container_width=True):
     st.rerun()
 index = int(order.get("状态序号", 0))
-st.caption(f"配送日期：{order['期望送达日期']} · 按前一日 23:59 截止收单")
+st.caption(f"配送日期：{order['期望送达日期']} · 按前一日 20:00 截止收单")
 if order.get("线路编号"):
     route_cols = st.columns(3)
     route_cols[0].metric("我的配送线路", order["线路编号"])

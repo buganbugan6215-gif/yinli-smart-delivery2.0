@@ -52,7 +52,7 @@ else:
 
 st.markdown("### 配送内容")
 delivery_date = delivery_day()
-st.info(f"本次下单配送日：{delivery_date}。每日 23:59 截止收取次日订单（北京时间，含该分钟）；00:00 起自动归入再下一天。")
+st.info(f"本次下单配送日：{delivery_date}。北京时间每日 20:00 截止次日订单；20:00 起提交自动归入后天配送。")
 st.caption(f"本批次截止时间：{cutoff_label(delivery_date)}。日期由提交时服务器北京时间确定，无需手动选择。")
 product = st.segmented_control("配送品类", ["鲜面条", "姜蒜"], default="鲜面条", selection_mode="single")
 if product == "姜蒜":
