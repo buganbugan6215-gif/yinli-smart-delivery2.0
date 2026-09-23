@@ -1,11 +1,14 @@
 import folium
+import copy
+import hashlib
+import json
 import streamlit as st
 from streamlit_folium import st_folium
 
 from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders
+from 功能组件_页面共用代码.order_state import customer_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
 
@@ -40,16 +43,38 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-@st.fragment(run_every="10s")
-def render_live_tracking() -> None:
-    current = customer_order(str(active)) or order
+if st.button("更新订单状态", key="refresh_tracking_status"):
+    st.rerun()
+
+# 会话内只保留当前订单的底图；车辆移动不改变底图脚本或组件标识。
+route = order.get("路线GeoJSON") if is_dijkstra_route(order) and order.get("线路编号") else None
+map_key = (str(active), hashlib.sha256(json.dumps(route, sort_keys=True).encode()).hexdigest())
+cached = st.session_state.get("tracking_base_map")
+if cached is None or cached[0] != map_key:
     fmap, minor_layer = create_chengdu_map(zoom_start=10)
-    route = current.get("路线GeoJSON")
-    status_index = int(current.get("状态序号", 0))
+    if route:
+        folium.GeoJson(route, name="本订单配送路线", style_function=lambda _: {"color": "#1750df", "weight": 5, "opacity": 0.9}, tooltip="本订单配送路线").add_to(fmap)
+    add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
+    folium.LayerControl(collapsed=True, position="topright").add_to(fmap)
+    fmap.get_root().render()
+    st.session_state["tracking_base_map"] = (map_key, fmap)
+fmap = st.session_state["tracking_base_map"][1]
+moving = order.get("状态") == "配送途中"
+
+
+@st.fragment(run_every="10s" if moving else None)
+def render_live_tracking() -> None:
+    current = customer_order(str(active))
+    if current is None:
+        st.warning("订单当前不可访问，请重新查询。")
+        return
+    if current.get("状态") != order.get("状态"):
+        # 检测到送达后重新注册无定时器片段，底图仍复用原对象。
+        st.rerun()
+    vehicles = folium.FeatureGroup(name="车辆位置")
     if not current.get("线路编号"):
         st.info("等待工作人员统一确认本配送日，确认后即可查看本单所属线路。")
     elif route and is_dijkstra_route(current):
-        folium.GeoJson(route, name="本订单配送路线", style_function=lambda _: {"color": "#1750df", "weight": 5, "opacity": 0.9}, tooltip="本订单配送路线").add_to(fmap)
         snapshot = get_tracking_snapshot(current, demo_factor=60.0)
         if snapshot:
             note = "已送达 · 订单收货点" if current.get("状态") != "配送途中" else f"配送途中 · 路程完成 {snapshot['progress']:.0%}"
@@ -59,12 +84,17 @@ def render_live_tracking() -> None:
                 popup=(f"<b>{current.get('车辆编号', '配送车辆')}</b><br>{note}<br>"
                        f"ETA：{snapshot['eta']:%H:%M}<br>预计区间：{snapshot['eta_earliest']:%H:%M} - {snapshot['eta_latest']:%H:%M}"),
                 icon=folium.Icon(color="orange", icon="truck", prefix="fa"),
-            ).add_to(fmap)
+            ).add_to(vehicles)
     else:
-        st.info("该订单尚未导入 Dijkstra 路网精算结果，暂不显示路线。请由工作人员完成本机精算后上传 formal_result.json。")
-    add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
-    folium.LayerControl(collapsed=True, position="topright").add_to(fmap)
-    st_folium(fmap, use_container_width=True, height=650, returned_objects=[], key=f"tracking-map-{current['订单编号']}")
+        st.info("该订单暂无可显示的已确认路线，请联系工作人员核对本批次调度结果。")
+    # 组件会修改传入对象的内部 ID 和图层，使用副本保护缓存底图。
+    st_folium(copy.deepcopy(fmap), use_container_width=True, height=650, returned_objects=[], key=f"tracking-map-{current['订单编号']}", feature_group_to_add=vehicles, render=False)
+    if current.get("状态") in {"已送达", "签收完成"}:
+        st.caption("车辆已到达，自动更新已停止；地图保留在当前页面，可继续缩放查看。")
+    elif moving:
+        st.caption("配送途中每 10 秒更新车辆位置，保留地图视角；工作人员确认送达后停止自动更新。")
+    else:
+        st.caption("当前地图不自动更新。需要查看最新调度或发车状态时，点击“更新订单状态”。")
     st.caption("蓝色路线为已确认的 Dijkstra 路线。橙色车辆为根据发车时间和仿真速度生成的演示位置，不是车载 GPS 实时数据。")
 
 
