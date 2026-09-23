@@ -4,7 +4,6 @@ import json
 import pandas as pd
 import streamlit as st
 
-from 功能组件_页面共用代码.data_loader import load_site_data
 from 功能组件_页面共用代码.formal_dispatch import build_formal_job, is_dijkstra_route, parse_formal_result
 from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, init_orders, persist_order, pricing_settings, save_pricing_settings, set_order_status
@@ -14,17 +13,16 @@ from 功能组件_页面共用代码.ui import fmt_money, inject_css, page_title
 inject_css()
 render_sidebar()
 require_staff_access()
-data = load_site_data()
 orders = init_orders(include_saved=True)
 page_title("企业工作台", "查看当日订单、调整调度参数，并确认配送流程")
 
-summary = data.summary.get("noodle", {})
+estimated_total = sum(float(item.get("预估费用_元", 0) or 0) for item in orders)
 st.markdown('<div class="ops-ribbon motion-focus"><span>今日运营</span><b>订单、参数、方案与状态统一管理</b><div class="pulse-route"><i></i></div></div>', unsafe_allow_html=True)
 metrics = st.columns(4)
 metrics[0].metric("已接收订单", len(orders))
 metrics[1].metric("待确认方案", sum(item.get("状态") == "方案待确认" for item in orders))
 metrics[2].metric("配送中", sum(item.get("状态") == "配送途中" for item in orders))
-metrics[3].metric("参考方案费用", fmt_money(summary.get("total_cost")))
+metrics[3].metric("当前所有方案预估费用", fmt_money(estimated_total))
 
 order_tab, parameter_tab, interface_tab = st.tabs(["订单与状态", "车辆与成本参数", "算法接口"])
 
