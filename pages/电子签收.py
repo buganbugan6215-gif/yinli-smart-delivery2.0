@@ -1,6 +1,6 @@
 import streamlit as st
 
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, find_order, init_orders, persist_order
+from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders, customer_update
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
 
@@ -17,22 +17,23 @@ if not orders:
 ids = [item["订单编号"] for item in orders]
 active = st.session_state.get("active_order_id", ids[0])
 selected = st.selectbox("选择订单", ids, index=ids.index(active) if active in ids else 0)
-order = find_order(selected)
+order = customer_order(selected)
 
 st.markdown(f"<div class='receipt-head motion-focus'><span>{order['订单编号']}</span><h2>{order['客户名称']}</h2><p>{order['品类']} · {order['配送重量_kg']:,.0f} kg · {order['收货地址']}</p></div>", unsafe_allow_html=True)
 
 if order.get("状态") == "签收完成":
     st.success("该订单已确认签收。")
 elif order.get("状态") != "已送达":
-    st.info(f"当前订单处于“{order.get('状态')}”，待配送车辆发出后可确认签收。")
+    st.info(f"当前订单处于“{order.get('状态')}”，待工作人员确认已送达后可签收。")
 else:
     st.markdown("### 货物确认无误")
     st.caption("请在确认数量、包装和货物状态无异常后完成签收。")
     if st.button("确认签收", type="primary", use_container_width=True):
-        order["状态"] = "签收完成"
-        order["状态序号"] = 5
-        order["签收结果"] = "正常签收"
-        persist_order(order)
+        try:
+            customer_update(selected, {}, receipt=True)
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
         st.success("签收完成，订单状态已更新。")
         st.rerun()
 
@@ -54,7 +55,7 @@ with st.expander("异常反馈", expanded=False):
                 "需要回电": callback,
                 "处理状态": "等待客服联系",
             }
-            persist_order(order)
+            customer_update(selected, {"异常反馈": order["异常反馈"]})
             st.success("异常反馈已提交，工作人员将根据订单联系电话与您沟通。")
 
 if order.get("异常反馈"):

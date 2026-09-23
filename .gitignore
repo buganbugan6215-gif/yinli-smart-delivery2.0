@@ -2,3 +2,8 @@
 *.py[cod]
 __pycache__/
 github_token.txt
+
+客户订单数据/
+.streamlit/secrets.toml
+.pytest_cache/
+测试产物/

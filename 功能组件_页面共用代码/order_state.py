@@ -13,9 +13,11 @@ from uuid import uuid4
 import pandas as pd
 import streamlit as st
 
+from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day
+
 STATUS_FLOW = ["订单已提交", "方案待确认", "仓库备货中", "配送途中", "已送达", "签收完成"]
 ROOT = Path(__file__).resolve().parents[1]
-ORDER_DATA_DIR = ROOT / "客户订单数据"
+ORDER_DATA_DIR = Path(os.getenv("YL_ORDER_DATA_DIR", str(ROOT / "客户订单数据")))
 SETTINGS_PATH = ORDER_DATA_DIR / "调价参数.json"
 ORDER_DB_PATH = ORDER_DATA_DIR / "订单状态.db"
 DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
@@ -237,7 +239,10 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
         st.session_state["customer_orders"] = []
     own = st.session_state["customer_orders"]
     if not include_saved:
-        return own
+        allowed = {item["订单编号"] for item in own} | set(st.session_state.get("verified_order_ids", []))
+        current = {item["订单编号"]: item for item in load_order_records()}
+        # 返回共享数据库的最新值；不得用客户端旧快照覆盖调度状态。
+        return [current[oid] for oid in sorted(allowed) if oid in current]
     records: dict[str, dict[str, Any]] = {}
     paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
     for path in paths:
@@ -247,18 +252,25 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
                 records[str(item.get("订单编号"))] = item
         except Exception:
             continue
-    # Excel 是归档副本；SQLite 是运行中的共享状态，会覆盖较旧的归档值。
+    # 旧 Excel 首次迁移采用 INSERT OR IGNORE，不能覆盖其他会话更新。
+    with _db_connection() as connection:
+        for item in records.values():
+            connection.execute("INSERT OR IGNORE INTO orders VALUES (?, ?, ?)",
+                               (str(item["订单编号"]), beijing_now().isoformat(), json.dumps(item, ensure_ascii=False, default=str)))
     for item in load_order_records():
-        records[str(item.get("订单编号"))] = item
-    # 当前访问刚产生的尚未落库状态拥有最高优先级。
-    for item in own:
         records[str(item.get("订单编号"))] = item
     return sorted(records.values(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
 
 
 def create_order(payload: dict[str, Any]) -> dict[str, Any]:
-    own_orders = init_orders()
-    now = datetime.now()
+    init_orders()
+    own_orders = st.session_state["customer_orders"]
+    now = beijing_now()
+    payload = dict(payload)
+    day = delivery_day(now).isoformat()
+    payload["期望送达日期"] = day
+    payload["期望送达"] = f"{day} {payload.get('最早到达', '00:00')}"
+    payload["最晚送达"] = f"{day} {payload.get('最晚到达', '00:00')}"
     longitude = float(payload["经度"]) if payload.get("经度") not in (None, "") else None
     latitude = float(payload["纬度"]) if payload.get("纬度") not in (None, "") else None
     quote = estimate_delivery_fee(str(payload.get("品类", "")), float(payload.get("配送重量_kg", 0)), longitude, latitude)
@@ -275,7 +287,11 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
         "允许窗结束_分钟": min(1439, minutes_from_midnight(latest) + 30),
         "服务时间_分钟": service_minutes(product, noodle, ginger, garlic),
     }
-    order = {"订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:4].upper()}", "提交时间": now.strftime("%Y-%m-%d %H:%M:%S"), "状态": STATUS_FLOW[1] if longitude is not None else STATUS_FLOW[0], "状态序号": 1 if longitude is not None else 0, "数据模式": "等待本机 Dijkstra 精算", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": None, **payload, **enriched}
+    if longitude is None or latitude is None or not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        raise ValueError("请提供有效的收货坐标。")
+    if float(payload.get("配送重量_kg", 0)) <= 0 or minutes_from_midnight(latest) <= minutes_from_midnight(earliest):
+        raise ValueError("重量必须大于零，最晚送达时间须晚于最早到达时间。")
+    order = {**payload, **enriched, "订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:12].upper()}", "提交时间": now.isoformat(timespec="seconds"), "状态": STATUS_FLOW[1], "状态序号": 1, "数据模式": "等待整日统一调度", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": None}
     try:
         order["保存路径"] = save_order_to_excel(order)
         order["保存状态"] = "已保存到本机演示订单表"
@@ -284,6 +300,42 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
     save_order_record(order)
     own_orders.insert(0, order)
     return order
+
+
+def verify_customer_order(order_id: str, phone_tail: str) -> dict[str, Any] | None:
+    """客户需要订单编号和联系电话后四位；核验只授予该订单的会话权限。"""
+    with _db_connection() as connection:
+        row = connection.execute("SELECT payload FROM orders WHERE order_id=?", (order_id.strip().upper(),)).fetchone()
+    item = json.loads(row[0]) if row else None
+    if item and len(phone_tail) == 4 and phone_tail.isdigit() and str(item.get("联系电话", "")).endswith(phone_tail):
+        allowed = set(st.session_state.get("verified_order_ids", []))
+        allowed.add(item["订单编号"])
+        st.session_state["verified_order_ids"] = sorted(allowed)
+        return item
+    return None
+
+
+def customer_order(order_id: str) -> dict[str, Any] | None:
+    return next((item for item in init_orders() if item["订单编号"] == order_id), None)
+
+
+def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = False) -> None:
+    if not customer_order(order_id):
+        raise ValueError("请先核验该订单。")
+    with _db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT payload FROM orders WHERE order_id=?", (order_id,)).fetchone()
+        if row is None:
+            raise ValueError("订单不存在。")
+        order = json.loads(row[0])
+        if receipt:
+            if order["状态"] != "已送达":
+                raise ValueError("仅已送达订单可以签收，请刷新状态。")
+            order.update({"状态": "签收完成", "状态序号": 5, "签收结果": "正常签收"})
+        elif "异常反馈" in changes:
+            order["异常反馈"] = changes["异常反馈"]
+        connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
+                           (json.dumps(order, ensure_ascii=False), beijing_now().isoformat(), order_id))
 
 
 def find_order(order_id: str, include_saved: bool = False) -> dict[str, Any] | None:

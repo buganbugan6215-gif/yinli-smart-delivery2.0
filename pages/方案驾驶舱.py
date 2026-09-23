@@ -10,6 +10,7 @@ from 功能组件_页面共用代码.ui import fmt_money, fmt_num, inject_css, p
 inject_css()
 render_sidebar()
 require_staff_access()
+st.info("此页为竞赛成果/独立试算视图。当前客户订单的整日调度，请进入「订单与参数」。")
 data = load_site_data()
 page_title("配送总览", "先看结果，再查看路线、车辆和费用")
 

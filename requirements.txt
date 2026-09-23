@@ -4,3 +4,6 @@ plotly
 folium
 streamlit-folium
 openpyxl
+
+numpy>=1.24
+scipy>=1.11

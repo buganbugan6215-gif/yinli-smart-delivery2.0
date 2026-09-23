@@ -5,7 +5,7 @@ from streamlit_folium import st_folium
 from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, find_order, init_orders
+from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
 
@@ -24,11 +24,13 @@ if not active:
         st.switch_page("pages/客户下单.py")
     st.stop()
 
-order = find_order(str(active), include_saved=True)
+order = customer_order(str(active))
 if not order:
     st.warning("未找到该订单，请先在“订单追踪”使用订单号和联系电话后四位查询。")
     st.stop()
 st.session_state["active_order_id"] = order["订单编号"]
+st.info(f"所属线路：{order.get('线路编号', '尚未统一确认')} · 配送日：{order['期望送达日期']}")
+st.caption("仅展示沿已分配线路到本收货点的道路，不显示其他客户姓名、电话、订单号或站点标记。")
 
 st.markdown(f"""
 <div class="map-order-head motion-focus">
@@ -40,12 +42,12 @@ st.markdown(f"""
 
 @st.fragment(run_every="10s")
 def render_live_tracking() -> None:
-    current = find_order(str(active), include_saved=True) or order
+    current = customer_order(str(active)) or order
     fmap, minor_layer = create_chengdu_map(zoom_start=10)
     route = current.get("路线GeoJSON")
     status_index = int(current.get("状态序号", 0))
-    if status_index < STATUS_FLOW.index("配送途中"):
-        st.info("车辆尚未发出。工作人员点击“车辆发出，开始配送”后，路线和车辆位置将在这里显示。")
+    if not current.get("线路编号"):
+        st.info("等待工作人员统一确认本配送日，确认后即可查看本单所属线路。")
     elif route and is_dijkstra_route(current):
         folium.GeoJson(route, name="本订单配送路线", style_function=lambda _: {"color": "#1750df", "weight": 5, "opacity": 0.9}, tooltip="本订单配送路线").add_to(fmap)
         snapshot = get_tracking_snapshot(current, demo_factor=60.0)

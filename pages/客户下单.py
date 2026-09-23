@@ -1,6 +1,7 @@
 import streamlit as st
 
 from datetime import time
+from 功能组件_页面共用代码.delivery_calendar import delivery_day, cutoff_label
 
 from 功能组件_页面共用代码.order_state import create_order, estimate_delivery_fee, geocode_address, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
@@ -13,7 +14,7 @@ page_title("客户下单", "填写收货信息和送达时间，提交前即可�
 
 st.markdown("""
 <div class="service-hero motion-focus">
-  <div><h2>把配送需求交给我们。</h2><p>信息填写完成后，系统会保存订单并进入备货与车辆安排流程。</p></div>
+  <div><h2>把配送需求交给我们。</h2><p>信息填写完成后，系统按北京时间自动安排次日配送，截止后由工作人员统一安排车辆。</p></div>
   <div class="service-orbit"><span></span><b>订单正在进入配送网络</b></div>
 </div>
 """, unsafe_allow_html=True)
@@ -50,17 +51,20 @@ else:
     st.caption("配置高德 Web 服务密钥后优先使用高德；未配置时自动使用 OpenStreetMap。识别结果缓存 24 小时。")
 
 st.markdown("### 配送内容")
+delivery_date = delivery_day()
+st.info(f"本次下单配送日：{delivery_date}。每日 23:59 截止收取次日订单（北京时间，含该分钟）；00:00 起自动归入再下一天。")
+st.caption(f"本批次截止时间：{cutoff_label(delivery_date)}。日期由提交时服务器北京时间确定，无需手动选择。")
 product = st.segmented_control("配送品类", ["鲜面条", "姜蒜"], default="鲜面条", selection_mode="single")
 if product == "姜蒜":
     q1, q2, q3 = st.columns(3)
     ginger_kg = q1.number_input("生姜需求量（kg）", min_value=0.0, value=50.0, step=5.0)
     garlic_kg = q2.number_input("大蒜需求量（kg）", min_value=0.0, value=50.0, step=5.0)
     quantity = ginger_kg + garlic_kg
-    delivery_date = q3.date_input("期望送达日期")
+    q3.metric("配送日期", str(delivery_date))
 else:
     q1, q2 = st.columns([1, 1])
     quantity = q1.number_input("鲜面需求量（kg）", min_value=1.0, value=100.0, step=10.0)
-    delivery_date = q2.date_input("期望送达日期")
+    q2.metric("配送日期", str(delivery_date))
     ginger_kg = garlic_kg = 0.0
 t1, t2 = st.columns(2)
 expected_time = t1.time_input("最早到达时间", value=time(8, 0))
@@ -76,6 +80,8 @@ if submitted:
     missing = [name for name, value in [("客户名称", customer), ("收货地址", address), ("联系人", contact), ("联系电话", phone)] if not value.strip()]
     if missing:
         st.error("请补充：" + "、".join(missing))
+    elif quantity <= 0:
+        st.error("配送重量必须大于零。")
     elif latest_time <= expected_time:
         st.error("最晚送达时间需要晚于期望送达时间。")
     elif not coordinates:
@@ -90,7 +96,7 @@ if submitted:
             "最晚送达": f"{delivery_date} {latest_time.strftime('%H:%M')}", "预估费用_元": quote["预估费用_元"],
             "经度": coordinates[0] if coordinates else "", "纬度": coordinates[1] if coordinates else "", "地址识别结果": coordinates[2] if coordinates else "未识别", "地址识别服务": coordinates[3] if coordinates else "未识别",
         })
-        st.success(f"订单 {order['订单编号']} 已提交，服务时间 {order['服务时间_分钟']} 分钟，预估费用 ¥ {order['预估费用_元']:,.2f}。订单正在等待工作人员确认配送方案。")
+        st.success(f"订单 {order['订单编号']} 已提交，服务时间 {order['服务时间_分钟']} 分钟，预估费用 ¥ {order['预估费用_元']:,.2f}。配送日期：{order['期望送达日期']}，等待整日统一调度。")
         st.session_state["active_order_id"] = order["订单编号"]
         if order.get("保存状态") == "已保存到本机演示订单表":
             st.caption("订单已保存。退出后仍可使用订单编号和联系电话后四位查询进度。")

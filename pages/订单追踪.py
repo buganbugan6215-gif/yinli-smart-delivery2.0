@@ -1,7 +1,7 @@
 import streamlit as st
 
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, find_order, init_orders
+from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders, verify_customer_order
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
 
@@ -18,7 +18,7 @@ with own_tab:
         default_id = st.session_state.get("active_order_id", ids[0])
         selected = st.selectbox("选择订单", ids, index=ids.index(default_id) if default_id in ids else 0)
         # 优先读取共享记录，保证工作人员发车后的新状态会显示给客户。
-        order = find_order(selected, include_saved=True)
+        order = customer_order(selected)
     else:
         st.info("当前浏览器还没有提交过订单，可切换到“使用订单号查询”。")
 with lookup_tab:
@@ -26,16 +26,14 @@ with lookup_tab:
     query_id = q1.text_input("订单编号", placeholder="例如：YL20260918123000ABCD").strip().upper()
     phone_tail = q2.text_input("联系电话后四位", max_chars=4, placeholder="用于核验").strip()
     if st.button("查询订单", type="primary", use_container_width=True):
-        candidate = find_order(query_id, include_saved=True) if query_id else None
-        stored_phone = str(candidate.get("联系电话", "")) if candidate else ""
-        if candidate and len(phone_tail) == 4 and stored_phone.endswith(phone_tail):
+        candidate = verify_customer_order(query_id, phone_tail) if query_id else None
+        if candidate:
             order = candidate
             st.session_state["active_order_id"] = query_id
             st.session_state["lookup_order_id"] = query_id
         else:
+            order = None
             st.error("未找到匹配订单，请检查订单编号和联系电话后四位。")
-    elif st.session_state.get("lookup_order_id"):
-        order = find_order(st.session_state["lookup_order_id"], include_saved=True)
 
 if not order:
     st.markdown("<div class='empty-stage motion-focus'><h2>输入订单号即可继续查看。</h2><p>订单号会在提交成功后显示，请同时准备联系电话后四位。</p></div>", unsafe_allow_html=True)
@@ -47,11 +45,21 @@ st.session_state["active_order_id"] = order["订单编号"]
 if st.button("刷新最新状态", use_container_width=True):
     st.rerun()
 index = int(order.get("状态序号", 0))
+st.caption(f"配送日期：{order['期望送达日期']} · 按前一日 23:59 截止收单")
+if order.get("线路编号"):
+    route_cols = st.columns(3)
+    route_cols[0].metric("我的配送线路", order["线路编号"])
+    route_cols[1].metric("配送车辆", order["车辆编号"])
+    route_cols[2].metric("本单配送顺序", f"第 {order['配送顺序']} 站")
+    minute = int(order.get("计划到达_分钟", 0))
+    st.caption(f"计划到达 {minute//60:02d}:{minute%60:02d}；仅展示本订单信息，不展示同线路其他客户名单。")
+else:
+    st.info("本配送日尚未统一确认，确认后将显示您的线路编号和车辆。")
 
 
 @st.fragment(run_every="10s")
 def render_live_eta() -> None:
-    current = find_order(str(order["订单编号"]), include_saved=True) or order
+    current = customer_order(str(order["订单编号"])) or order
     snapshot = get_tracking_snapshot(current, demo_factor=60.0)
     if not snapshot:
         return

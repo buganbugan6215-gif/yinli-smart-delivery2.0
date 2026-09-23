@@ -7,6 +7,7 @@ from 功能组件_页面共用代码.ui import inject_css, page_title, plotly_co
 inject_css()
 render_sidebar()
 require_staff_access()
+st.info("此页为竞赛成果/独立试算视图。当前客户订单的整日调度，请进入「订单与参数」。")
 data = load_site_data()
 page_title("订单概览", "先看订单总量，再按品类和需求筛选")
 

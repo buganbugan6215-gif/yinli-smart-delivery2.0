@@ -7,6 +7,7 @@ from 功能组件_页面共用代码.ui import fmt_money, fmt_num, inject_css, p
 inject_css()
 render_sidebar()
 require_staff_access()
+st.info("此页为竞赛成果/独立试算视图。当前客户订单的整日调度，请进入「订单与参数」。")
 data = load_site_data()
 page_title("车辆安排", "查看每辆车服务哪些客户、走多远、预计花费多少")
 

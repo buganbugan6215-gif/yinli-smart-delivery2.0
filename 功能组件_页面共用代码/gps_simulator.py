@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
+from 功能组件_页面共用代码.delivery_calendar import as_beijing
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 
 
@@ -82,7 +83,8 @@ def get_tracking_snapshot(
     except (KeyError, TypeError, ValueError):
         return None
 
-    current_time = now or datetime.now()
+    current_time = as_beijing(now)
+    departed_at = as_beijing(departed_at)
     cumulative = _cumulative_distances(coordinates)
     total_km = cumulative[-1]
     if total_km <= 0:

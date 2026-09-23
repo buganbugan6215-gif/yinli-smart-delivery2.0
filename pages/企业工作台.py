@@ -1,110 +1,99 @@
 from io import BytesIO
-import json
-
+from datetime import time
 import pandas as pd
 import streamlit as st
 
-from 功能组件_页面共用代码.formal_dispatch import build_formal_job, is_dijkstra_route, parse_formal_result
-from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, init_orders, persist_order, pricing_settings, save_pricing_settings, set_order_status
-from 功能组件_页面共用代码.ui import fmt_money, inject_css, page_title, render_sidebar, require_staff_access
-
+from 功能组件_页面共用代码.order_state import init_orders, pricing_settings, save_pricing_settings
+from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day, batch_closed, cutoff_label
+from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint, confirm_batch, advance_batch, workbook_bytes
+from 功能组件_页面共用代码.batch_solver import solve_batch
+from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
 
 inject_css()
 render_sidebar()
 require_staff_access()
-orders = init_orders(include_saved=True)
-page_title("企业工作台", "查看当日订单、调整调度参数，并确认配送流程")
-
-estimated_total = sum(float(item.get("预估费用_元", 0) or 0) for item in orders)
-st.markdown('<div class="ops-ribbon motion-focus"><span>今日运营</span><b>订单、参数、方案与状态统一管理</b><div class="pulse-route"><i></i></div></div>', unsafe_allow_html=True)
-metrics = st.columns(4)
-metrics[0].metric("已接收订单", len(orders))
-metrics[1].metric("待确认方案", sum(item.get("状态") == "方案待确认" for item in orders))
-metrics[2].metric("配送中", sum(item.get("状态") == "配送途中" for item in orders))
-metrics[3].metric("当前所有方案预估费用", fmt_money(estimated_total))
-
-order_tab, parameter_tab, interface_tab = st.tabs(["订单与状态", "车辆与成本参数", "算法接口"])
+page_title("企业工作台", "按配送日汇总全部订单，一次计算矩阵，一次确认全部线路")
+st.info("收单规则：北京时间每日 23:59 截止次日订单（含该分钟）；00:00 起提交的订单自动归入下一配送日。")
+order_tab, parameter_tab, interface_tab = st.tabs(["整日订单与调度", "车辆与成本参数", "调度说明"])
 
 with order_tab:
-    @st.fragment(run_every="8s")
-    def render_live_orders() -> None:
-        live_orders = init_orders(include_saved=True)
-        st.markdown("### 当日客户订单")
-        st.caption("每 8 秒自动同步一次，其他工作人员更新的状态会出现在本页。")
-        if not live_orders:
-            st.markdown("<div class='empty-stage motion-reveal'><h3>当前没有客户订单</h3><p>客户提交需求后，订单会按日期和品类进入这里。</p></div>", unsafe_allow_html=True)
-            return
-        frame = pd.DataFrame(live_orders)
-        show = [c for c in ["订单编号", "客户名称", "品类", "鲜面需求量_kg", "生姜需求量_kg", "大蒜需求量_kg", "期望窗开始_分钟", "期望窗结束_分钟", "服务时间_分钟", "状态"] if c in frame.columns]
-        st.dataframe(frame[show], use_container_width=True, hide_index=True)
-        export = BytesIO()
-        with pd.ExcelWriter(export, engine="openpyxl") as writer:
-            for product, sheet in [("鲜面条", "鲜面订单"), ("姜蒜", "姜蒜订单")]:
-                frame[frame["品类"] == product].to_excel(writer, sheet_name=sheet, index=False)
-        st.download_button(
-            "下载当前订单 Excel",
-            export.getvalue(),
-            "银犁当日客户订单.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="workbench_download_orders",
-        )
-        labels = [f"{item['订单编号']} · {item['客户名称']} · {item['状态']}" for item in live_orders]
-        chosen_label = st.selectbox("选择需要处理的订单", labels, key="live_order_choice")
-        chosen = live_orders[labels.index(chosen_label)]
-        left, right = st.columns([.8, 1.2], gap="large")
-        with left:
-            st.markdown(f"<div class='ops-order motion-reveal'><span>{chosen['品类']}</span><h3>{chosen['客户名称']}</h3><p>{float(chosen['配送重量_kg']):,.0f} kg · {chosen['期望送达']}</p><b>{chosen['状态']}</b></div>", unsafe_allow_html=True)
-        with right:
-            st.markdown("#### 配送流程操作")
-            st.caption("必须导入本机 Dijkstra 路网结果后，才允许确认方案与发车。")
-            formal_ready = is_dijkstra_route(chosen)
-            if not formal_ready:
-                st.download_button(
-                    "1. 下载本机 Dijkstra 精算任务",
-                    build_formal_job(chosen),
-                    file_name=f"{chosen['订单编号']}_Dijkstra任务.zip",
-                    mime="application/zip",
-                    use_container_width=True,
-                    key=f"workbench_download_dijkstra_{chosen['订单编号']}",
-                )
-                uploaded = st.file_uploader("2. 上传本机求解结果", type=["json", "zip"], key=f"formal_{chosen['订单编号']}")
-                if uploaded and st.button("导入 Dijkstra 路网结果", use_container_width=True, key=f"import_{chosen['订单编号']}"):
+    available = sorted({str(o.get("期望送达日期")) for o in init_orders(include_saved=True) if o.get("期望送达日期")}, reverse=True)
+    if not available:
+        st.info("暂无订单。客户提交后将按配送日期出现在这里。")
+    else:
+        day = st.selectbox("配送日期", available)
+        st.caption(f"截止时间：{cutoff_label(day)}")
+        if st.button("刷新本配送日订单"):
+            st.rerun()
+        orders = day_orders(day)
+        closed = batch_closed(day)
+        batch = get_batch(day)
+        stats = st.columns(3)
+        stats[0].metric("本批次订单", len(orders))
+        stats[1].metric("总货量 kg", f"{sum(float(o['配送重量_kg']) for o in orders):,.1f}")
+        stats[2].metric("批次状态", "已统一确认" if batch else "已截止，待调度" if closed else "正在收单")
+        columns = ["订单编号", "客户名称", "品类", "配送重量_kg", "期望送达日期", "最早到达", "最晚到达", "状态", "线路编号", "配送顺序"]
+        frame = pd.DataFrame(orders)
+        st.dataframe(frame[[c for c in columns if c in frame.columns]], use_container_width=True, hide_index=True)
+        excel = BytesIO()
+        with pd.ExcelWriter(excel, engine="openpyxl") as writer:
+            frame.drop(columns=["路线GeoJSON", "报价明细"], errors="ignore").to_excel(writer, index=False, sheet_name="当日订单")
+        st.download_button("下载本配送日全部订单 Excel", excel.getvalue(), f"{day}_全部订单.xlsx")
+        if not closed:
+            st.warning("本批次尚在收单。截止后才能统一计算和确认，以免漏掉后续订单。")
+        elif not batch:
+            departure = st.time_input("计划发车时间", time(6, 0))
+            if st.button("一次计算全部订单的矩阵与线路", type="primary", use_container_width=True):
+                progress = st.progress(0.0, text="正在加载货车路网…")
+                try:
+                    plan = solve_batch(orders, pricing_settings(), departure.hour*60+departure.minute,
+                                       lambda value, message: progress.progress(value, text=message))
+                    plan["输入指纹"] = input_fingerprint(orders)
+                    st.session_state[f"batch_draft_{day}"] = plan
+                except (ValueError, OSError) as exc:
+                    st.error(str(exc))
+                finally:
+                    progress.empty()
+            plan = st.session_state.get(f"batch_draft_{day}")
+            if plan:
+                current_input = input_fingerprint(orders)
+                stale = (current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
+                         departure.hour*60+departure.minute != plan["发车分钟"])
+                if stale:
+                    st.warning("订单、车辆参数或计划发车时间已变化，请重新计算后确认。")
+                st.markdown("### 整批方案预览")
+                st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k not in {"路线GeoJSON", "订单编号列表"}} for r in plan["线路"]]), hide_index=True, use_container_width=True)
+                st.caption(plan["算法"] + "；无法覆盖全部订单时不允许发布部分方案。")
+                with st.expander("核对全部订单分配和最短距离矩阵"):
+                    st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"]), use_container_width=True)
+                if st.button("统一确认全部线路并开始备货", type="primary", disabled=stale, use_container_width=True):
                     try:
-                        result = parse_formal_result(uploaded.getvalue(), uploaded.name)
-                        if str(result.get("订单编号", chosen["订单编号"])) != chosen["订单编号"]:
-                            raise ValueError("结果文件的订单编号与当前订单不一致。")
-                        chosen["路线GeoJSON"] = result["路线GeoJSON"]
-                        chosen["路网最短距离_km"] = result.get("路网最短距离_km", "")
-                        chosen["路网节点"] = result.get("路网节点", {})
-                        chosen["数据模式"] = "Dijkstra 路网精算结果"
-                        persist_order(chosen)
-                        st.success("已导入 Dijkstra 路网结果，现在可确认方案。")
-                        st.rerun(scope="fragment")
-                    except (ValueError, json.JSONDecodeError) as exc:
-                        st.error(f"导入失败：{exc}")
-            else:
-                st.success(f"已导入 Dijkstra 路网结果{(' · ' + str(chosen.get('路网最短距离_km')) + ' km') if chosen.get('路网最短距离_km') != '' else ''}")
-            tracking_snapshot = get_tracking_snapshot(chosen, demo_factor=60.0)
-            if tracking_snapshot:
-                risk_level, risk_message = arrival_risk(chosen, tracking_snapshot)
-                contact = str(chosen.get("联系电话", "")).strip()
-                if risk_level == "error" and contact:
-                    risk_message = f"{risk_message} 客户联系电话：{contact}"
-                getattr(st, risk_level)(risk_message)
-            current = STATUS_FLOW.index(chosen.get("状态", STATUS_FLOW[0]))
-            actions = [
-                ("确认配送方案并开始备货", "仓库备货中", current >= STATUS_FLOW.index("仓库备货中") or not formal_ready),
-                ("车辆发出，开始配送", "配送途中", current != STATUS_FLOW.index("仓库备货中") or not formal_ready),
-                ("确认货物已送达", "已送达", current != STATUS_FLOW.index("配送途中")),
-            ]
-            for label, target, disabled in actions:
-                if st.button(label, use_container_width=True, type="primary" if target == "仓库备货中" else "secondary", disabled=disabled, key=f"status_{chosen['订单编号']}_{target}"):
-                    set_order_status(chosen, target)
-                    st.success(f"订单状态已更新为：{target}")
-                    st.rerun(scope="fragment")
-    render_live_orders()
+                        confirm_batch(plan)
+                        st.session_state.pop(f"batch_draft_{day}", None)
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
+        if batch:
+            st.success(f"本配送日 {len(batch['订单结果'])} 个订单、{len(batch['线路'])} 条线路已统一确认。")
+            st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in batch["订单结果"]]), hide_index=True, use_container_width=True)
+            statuses = {o["状态"] for o in orders}
+            for label, target, required in [("全部车辆发出，开始配送", "配送途中", "仓库备货中"), ("确认本批次全部货物已送达", "已送达", "配送途中")]:
+                if st.button(label, disabled=statuses != {required}, use_container_width=True):
+                    try:
+                        advance_batch(day, target)
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
+            st.caption("全部送达按钮仅在所有货物实际到达后操作；每位客户独立确认自己的签收。")
+            st.download_button("下载整批距离矩阵与线路清单", workbook_bytes(batch), f"{day}_距离矩阵与线路.xlsx")
+            with st.expander("查看本配送日完整最短距离矩阵（米）"):
+                st.dataframe(pd.DataFrame(batch["距离矩阵_m"], index=batch["矩阵标签"], columns=batch["矩阵标签"]), use_container_width=True)
+        feedback = [o for o in orders if o.get("异常反馈")]
+        if feedback:
+            st.markdown("### 本批次异常反馈")
+            for o in feedback:
+                st.write({"订单编号": o["订单编号"], "联系电话": o.get("联系电话"), **o["异常反馈"]})
 
 with parameter_tab:
     st.markdown("### 调度参数")
@@ -157,13 +146,9 @@ with parameter_tab:
         st.success("车辆、成本、速度和货损参数已保存。")
 
 with interface_tab:
-    st.markdown("### 当日方案生成链路")
-    st.markdown("""
-    <div class="integration-rail motion-reveal">
-      <div class="ready"><span>01 订单</span><b>已接入</b><small>按日期与品类生成 Excel，保存经纬度、分钟时间窗和服务时间。</small></div>
-      <div class="ready"><span>02 空间数据</span><b>接口就绪</b><small>订单经纬度采用 EPSG:4326，可用于生成客户点图层。</small></div>
-      <div><span>03 最短路</span><b>待本机运行</b><small>读取成都路网，通过 Dijkstra 生成当日客户最短距离矩阵。</small></div>
-      <div><span>04 优化方案</span><b>待算法接入</b><small>读取当日矩阵与参数，生成车辆、路线、成本和准时率。</small></div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.info("公网端不运行大型路网和耗时优化程序。正式使用时，由本机计算程序生成结果文件，再上传平台展示和确认。")
+    st.markdown("### 每个配送日只确认一份完整方案")
+    st.write("1. 客户当天提交订单，自动归入次日配送；北京时间 23:59 为最后收单分钟。")
+    st.write("2. 截止后工作人员选择配送日，网页一次计算配送中心与所有客户之间的有向最短距离矩阵。")
+    st.write("3. 使用车辆载重、续航、收货时间窗和服务时间生成线路，整批检查后统一确认并锁定。")
+    st.write("4. 客户用订单编号和联系电话后四位核验，只能查看自己的配送日期、线路、车辆与顺序。")
+    st.caption("多车线路为可行启发式方案，不保证全局最优；路网方向和道路长度来自仓库内的竞赛货车路网。")
