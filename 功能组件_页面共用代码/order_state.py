@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-gsap-v9"
+RELEASE_VERSION = "2026-10-03-gsap-v9.1"
 
 from datetime import date, datetime
 import json

@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const version = '2026-10-03-gsap-v9';
+  const version = '2026-10-03-gsap-v9.1';
   if (!window.gsap || window.__ylMotion?.version === version) return;
   window.__ylMotion?.dispose();
   const g = window.gsap, root = document.documentElement;
