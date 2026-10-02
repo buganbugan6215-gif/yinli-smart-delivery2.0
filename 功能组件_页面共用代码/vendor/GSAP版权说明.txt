@@ -1,0 +1,6 @@
+GSAP 3.15.0
+Copyright 2026, GreenSock. All rights reserved.
+官方网站：https://gsap.com
+适用许可证：https://gsap.com/standard-license
+官方 npm 包：https://registry.npmjs.org/gsap/-/gsap-3.15.0.tgz
+本目录保留官方发行文件的完整版权及许可证链接声明。

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-uiux-review-v8"
+RELEASE_VERSION = "2026-10-03-gsap-v9"
 
 import html
 import inspect
@@ -305,6 +305,8 @@ def inject_css() -> None:
     )
     theme = Path(__file__).with_name("ui_refinement.css").read_text(encoding="utf-8")
     st.markdown(f"<style>{theme}</style>", unsafe_allow_html=True)
+    from .motion import install_motion
+    install_motion()
 
 
 CUSTOMER_PAGES = [

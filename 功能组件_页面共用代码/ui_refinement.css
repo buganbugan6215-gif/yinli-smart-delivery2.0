@@ -73,3 +73,14 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,
   .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:16px; }
   .page-subtitle { margin-bottom:16px; }
 }
+.st-key-yl_motion_bootstrap { display: none !important; }
+/* 引擎就绪后关闭重复 CSS 动画；加载失败时原有 CSS 仍可使用。 */
+html[data-yl-motion] .motion-focus,
+html[data-yl-motion] .motion-reveal,
+html[data-yl-motion] .home-reveal,
+html[data-yl-motion] .home-hero-copy,
+html[data-yl-motion] .delivery-track-fill,
+html[data-yl-motion] [data-testid="stAlert"] { animation: none !important; }
+html[data-yl-motion] [data-testid="stButton"] button,
+html[data-yl-motion] [data-testid="stDownloadButton"] button,
+html[data-yl-motion] [data-testid="stPageLink-NavLink"] { transition-property: background-color, border-color, box-shadow, color !important; }
