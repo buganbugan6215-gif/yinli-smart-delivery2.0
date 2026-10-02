@@ -84,3 +84,41 @@ html[data-yl-motion] [data-testid="stAlert"] { animation: none !important; }
 html[data-yl-motion] [data-testid="stButton"] button,
 html[data-yl-motion] [data-testid="stDownloadButton"] button,
 html[data-yl-motion] [data-testid="stPageLink-NavLink"] { transition-property: background-color, border-color, box-shadow, color !important; }
+
+/* 首页四宫格：等宽、等高，取消跨行大卡片。 */
+.home-bento { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,auto); align-items:stretch; }
+.home-feature,.home-feature-large { grid-row:auto; min-height:210px; padding:24px; }
+.home-feature-large { background:#e3ebf8; }
+.home-feature-blue { background:#dbe6f7; border-color:#c4d4ec; }
+.home-feature-light { background:#e7edf7; }
+.home-feature-dark { background:#e1e9f5; border-color:#cbd7e8; }
+.home-feature h3 { max-width:none; font-size:1.25rem!important; }
+.home-feature-blue h3,.home-feature-dark h3 { color:#123579; }
+.home-feature p,.home-feature-blue p,.home-feature-dark p { color:var(--ink-soft); }
+.home-feature-large p { padding-bottom:24px; }
+.feature-line { bottom:20px; }
+.keep-together { white-space:nowrap; }
+/* 标题和入口置于同一容器，保留固定间距，避免运动时相互覆盖。 */
+.st-key-home_final { margin-top:24px; padding:24px 32px; border-radius:16px; background:linear-gradient(140deg,#203977,#2d55bd); }
+.st-key-home_final .home-final { margin:0; padding:0; background:transparent; border-radius:0; }
+.st-key-home_final .home-final h2 { max-width:none; margin-bottom:12px; }
+.st-key-home_final [data-testid='stPageLink'] { margin-top:8px; }
+.st-key-home_final [data-testid='stPageLink-NavLink'] { width:fit-content; min-width:180px; background:#e1e9f5!important; color:#153d88!important; border-color:#cbd7e8!important; }
+/* 输入内容不再单独绘制外圈或上下阴影；焦点只落在控件圆角容器上。 */
+input:focus,input:focus-visible,textarea:focus,textarea:focus-visible {
+  outline:none!important; outline-offset:0!important; box-shadow:none!important;
+}
+[data-testid='stTextInputRootElement']:focus-within,
+[data-testid='stNumberInputContainer']:focus-within,
+[data-baseweb='input']:focus-within,
+[data-baseweb='textarea']:focus-within,
+[data-baseweb='select']>div:focus-within {
+  border:1px solid #4358ff!important; border-radius:var(--radius-control)!important;
+  outline:none!important; box-shadow:none!important;
+}
+@media(max-width:800px) {
+  .home-bento { grid-template-columns:1fr; grid-template-rows:auto; }
+  .home-feature,.home-feature-large { min-height:190px; padding:20px; }
+  .st-key-home_final { padding:24px; }
+  .st-key-home_final .home-final { padding:0; }
+}

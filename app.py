@@ -50,7 +50,7 @@ st.markdown("""
   <p>从提交需求到确认收货，每一步都有清楚的状态和下一步提示。</p>
 </section>
 <div class="home-bento">
-  <article class="home-feature home-feature-large home-reveal"><h3>填写一次，配送需求清楚送达。</h3><p>客户名称、联系人、地址、电话、品类、重量和送达时间集中填写，提交前即可查看预估费用。</p><div class="feature-line"></div></article>
+  <article class="home-feature home-feature-large home-reveal"><h3>填写一次，配送需求<span class="keep-together">清楚送达。</span></h3><p>客户名称、联系人、地址、电话、品类、重量和送达时间集中填写，提交前即可查看预估费用。</p><div class="feature-line"></div></article>
   <article class="home-feature home-feature-blue home-reveal"><h3>进度随时可查</h3><p>订单提交、方案确认、仓库备货、配送途中、送达和签收，状态一目了然。</p></article>
   <article class="home-feature home-feature-light home-reveal"><h3>只看自己的路线</h3><p>统一确认后，可查看本订单所属线路、配送顺序和到本收货点的道路，不展示其他客户信息。</p></article>
   <article class="home-feature home-feature-dark home-reveal"><h3>签收更简单</h3><p>正常到货一键确认；有包装、数量、温度或延误问题，可直接提交异常反馈。</p></article>
@@ -81,9 +81,11 @@ for col, (page, title, copy) in zip(entry_cols, entries):
             st.page_link(page, label=title, icon=NAV_ICONS[page], use_container_width=True)
             st.caption(copy)
 
-st.markdown("""
-<div class="home-final home-reveal">
-  <div><h2>准备好配送信息，就可以开始下单。</h2><p>提交前显示预估费用，提交后可随时查看进度。</p></div>
-</div>
-""", unsafe_allow_html=True)
-st.page_link("pages/客户下单.py", label="填写配送订单", use_container_width=True)
+with st.container(key="home_final"):
+    st.markdown("""
+    <div class="home-final home-reveal">
+      <h2>准备好配送信息，就可以<span class="keep-together">开始下单。</span></h2>
+      <p>提交前显示预估费用，提交后可随时查看进度。</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.page_link("pages/客户下单.py", label="填写配送订单", use_container_width=True)

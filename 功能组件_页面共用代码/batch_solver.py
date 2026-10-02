@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-gsap-v9.1"
+RELEASE_VERSION = "2026-10-03-layout-focus-v10"
 
 from functools import lru_cache
 import gzip
