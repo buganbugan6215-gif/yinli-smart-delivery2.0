@@ -68,7 +68,17 @@
   });
   const release = () => { if (!reduced) g.to(document.querySelectorAll(controls), {scale: 1, duration: 0.16, overwrite: 'auto', clearProps: 'transform'}); };
   on('pointerup', release); on('pointercancel', release);
-  observer = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(scan)));
+  on('focusin', event => {
+    const card = event.target.closest(cards);
+    if (card) { g.killTweensOf(card); g.set(card, {clearProps: 'transform,opacity'}); }
+  });
+  observer = new MutationObserver(records => records.forEach(record => {
+    record.addedNodes.forEach(scan);
+    record.removedNodes.forEach(node => {
+      if (node.nodeType !== 1) return;
+      [node, ...node.querySelectorAll(entrance)].forEach(el => {view.unobserve(el); pending.delete(el); g.killTweensOf(el);});
+    });
+  }));
   observer.observe(document.body, {childList: true, subtree: true});
   scan(document.body);
   window.__ylMotion = {version, dispose() {

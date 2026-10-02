@@ -16,12 +16,12 @@ const context = vm.createContext({window: {gsap: g}, document,
   IntersectionObserver: class {observe() {} unobserve() {} disconnect() {disconnected++;}},
   MutationObserver: class {constructor() {observers++;} observe() {} disconnect() {disconnected++;}}});
 vm.runInContext(code, context);
-assert.equal(binds, 5); assert.equal(observers, 1);
+assert.equal(binds, 6); assert.equal(observers, 1);
 vm.runInContext(code, context);
-assert.equal(binds, 5); assert.equal(observers, 1); // Streamlit 再运行不重复注册
+assert.equal(binds, 6); assert.equal(observers, 1); // Streamlit 再运行不重复注册
 mediaCallback({conditions: {reduce: true}});
 assert.equal(document.documentElement.dataset.ylMotionReduced, 'true'); assert.equal(killed, 1);
 context.window.__ylMotion.dispose();
-assert.equal(unbinds, 5); assert.equal(disconnected, 2); assert.equal(reverted, 1);
+assert.equal(unbinds, 6); assert.equal(disconnected, 2); assert.equal(reverted, 1);
 assert.equal(document.documentElement.dataset.ylMotion, undefined);
 console.log('GSAP 生命周期、减少动态效果与清理检查通过');
