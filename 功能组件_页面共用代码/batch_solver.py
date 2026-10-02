@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-balanced-motion-v11"
+RELEASE_VERSION = "2026-10-03-hero-focus-v12"
 
 from functools import lru_cache
 import gzip

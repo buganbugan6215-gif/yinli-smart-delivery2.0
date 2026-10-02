@@ -135,3 +135,28 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible {
 .st-key-home_final [data-testid='stPageLink-NavLink'] p { color:#f0f4ff!important; font-weight:600; white-space:nowrap; }
 .st-key-home_final [data-testid='stPageLink-NavLink']:hover { background:rgba(255,255,255,.16)!important; border-color:#c1d0ed!important; }
 @media(max-width:800px) { .st-key-home_final { padding:24px; } }
+/* 首页主视觉：首屏承担最高信息层级，流程说明退居次级。 */
+.st-key-home_hero {
+  background:linear-gradient(120deg,#173875 0%,#224a99 65%,#2b53a1 100%);
+  border:1px solid #325ca5; padding:40px; border-radius:20px;
+  box-shadow:0 14px 34px rgba(27,58,116,.15);
+}
+.st-key-home_hero::before { background:radial-gradient(circle,rgba(134,170,239,.18),transparent 68%); }
+.st-key-home_hero .home-hero-copy h1 { color:#f0f5ff; font-size:clamp(2rem,3.7vw,3.2rem)!important; letter-spacing:-.025em; }
+.st-key-home_hero .home-hero-copy p { color:#d5e2f8; }
+.st-key-home_hero [data-testid='stCaptionContainer'] p { color:#c2d3ef!important; }
+.st-key-home_hero [data-testid='stPageLink-NavLink'] { background:rgba(255,255,255,.04)!important; border-color:#829fce!important; min-height:50px; box-shadow:none; }
+.st-key-home_hero [data-testid='stPageLink-NavLink'] p { color:#e6eeff!important; }
+.st-key-home_hero .st-key-home_primary [data-testid='stPageLink-NavLink'] { background:#dbe8ff!important; border-color:#dbe8ff!important; }
+.st-key-home_hero .st-key-home_primary [data-testid='stPageLink-NavLink'] p { color:#173875!important; font-weight:750; }
+.st-key-home_hero .st-key-home_primary [data-testid='stPageLink-NavLink']:hover { background:#c9dcff!important; border-color:#c9dcff!important; }
+.st-key-home_hero .customer-journey { padding:8px 0 8px 24px; border-left:1px solid rgba(192,211,244,.25); }
+.st-key-home_hero .customer-journey>div { border-bottom-color:rgba(192,211,244,.18); }
+.st-key-home_hero .customer-journey b { color:#e2eafb; font-weight:600; }
+.st-key-home_hero .customer-journey small { color:#bfcee8; }
+.st-key-home_hero .customer-journey span { background:rgba(210,228,255,.12); color:#dce9ff; }
+@media(max-width:800px) {
+  .st-key-home_hero { padding:24px; }
+  .st-key-home_hero .home-hero-copy h1 { font-size:2rem!important; }
+  .st-key-home_hero .customer-journey { padding:16px 0 0; border-left:0; border-top:1px solid rgba(192,211,244,.25); }
+}
