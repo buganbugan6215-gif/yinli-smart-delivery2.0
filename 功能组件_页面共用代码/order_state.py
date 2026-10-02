@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+RELEASE_VERSION = "2026-10-03-unified-interface-v4.2"
 
 from datetime import date, datetime
 import json

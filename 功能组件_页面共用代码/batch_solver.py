@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+RELEASE_VERSION = "2026-10-03-unified-interface-v4.2"
 
 from functools import lru_cache
 import gzip
@@ -147,7 +147,7 @@ def solve_batch(orders, rates, departure=360, progress=None):
     _, nodes = tree.query(np.array(points)*scale)
     snaps = [haversine_m(p, coords[n]) for p, n in zip(points, nodes)]
     if max(snaps) > 3000:
-        raise ValueError("存在距离已知货车路网超过 3 km 的收货点，请先核对地址。")
+        raise ValueError("存在距离已知货车路网超过 3 公里的收货点，请先核对地址。")
     labels = ["配送中心"] + ids
     matrix, predecessors = [], []
     for i, node in enumerate(nodes):

@@ -70,18 +70,18 @@ def render_live_eta() -> None:
     snapshot = get_tracking_snapshot(current, demo_factor=60.0)
     if not snapshot:
         return
-    st.markdown("### 车辆定位仿真与动态 ETA")
+    st.markdown("### 车辆定位仿真与预计到达时间")
     c1, c2, c3 = st.columns(3)
     c1.metric("路程完成度", f"{snapshot['progress']:.0%}")
-    c2.metric("剩余里程", f"{snapshot['remaining_km']:.2f} km")
+    c2.metric("剩余里程", f"{snapshot['remaining_km']:.2f} 公里")
     c3.metric("预计到达", snapshot["eta"].strftime("%H:%M"))
     st.progress(snapshot["progress"])
     st.info(f"预计到达区间：{snapshot['eta_earliest']:%H:%M} - {snapshot['eta_latest']:%H:%M}")
-    st.caption("位置与 ETA 根据已确认的 Dijkstra 路线、发车时间和仿真速度计算，不是车载 GPS 实时数据；客户原预约时间窗不会被修改。")
+    st.caption("位置与预计到达时间 根据已确认的 道路最短路径、发车时间和仿真速度计算，不是车载定位实时数据；客户原预约时间窗不会被修改。")
 
 st.markdown(f"""
 <div class="tracking-head motion-focus">
-  <div><span>订单编号</span><h2>{order['订单编号']}</h2><p>{order['客户名称']} · {order['品类']} · {order['配送重量_kg']:,.0f} kg</p></div>
+  <div><span>订单编号</span><h2>{order['订单编号']}</h2><p>{order['客户名称']} · {order['品类']} · {order['配送重量_kg']:,.0f} 千克</p></div>
   <div class="tracking-state"><i></i><b>{order['状态']}</b><small>{order['数据模式']}</small></div>
 </div>
 <div class="delivery-track" style="--track:{index / (len(STATUS_FLOW)-1) * 100:.0f}%">
@@ -113,4 +113,4 @@ with right:
     if order.get("状态") == "已送达" and st.button("完成电子签收", type="primary", use_container_width=True):
         st.switch_page("pages/电子签收.py")
 
-st.markdown("<div class='demo-banner motion-reveal'><b>车辆定位仿真</b><span>车辆位置和动态 ETA 基于真实 Dijkstra 路线与发车时间计算，不代表车载 GPS 实时上报，也不展示温度数据。</span></div>", unsafe_allow_html=True)
+st.markdown("<div class='demo-banner motion-reveal'><b>车辆定位仿真</b><span>车辆位置和预计到达时间基于已确认的道路最短路径与发车时间计算，不代表车载定位实时上报，也不展示温度数据。</span></div>", unsafe_allow_html=True)

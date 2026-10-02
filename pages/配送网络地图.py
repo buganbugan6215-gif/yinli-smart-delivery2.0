@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import streamlit as st
+from 功能组件_页面共用代码.ui import display_table
 from streamlit_folium import st_folium
 
 from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
@@ -45,7 +46,7 @@ if len(own_orders) > 1:
         st.rerun()
 group = [o for o in own_orders if order.get("总单编号") and o.get("总单编号") == order["总单编号"]] or [order]
 st.caption("蓝色实线：鲜面条 · 橙色虚线：姜蒜。两种品类分车配送，可在图层菜单单独查看。")
-st.dataframe([{"品类": o["品类"], "订单编号": o["订单编号"], "线路": o.get("线路编号", "等待确认"), "状态": o["状态"]} for o in group], hide_index=True, use_container_width=True)
+display_table([{"品类": o["品类"], "订单编号": o["订单编号"], "线路": o.get("线路编号", "等待确认"), "状态": o["状态"]} for o in group], hide_index=True, use_container_width=True)
 st.caption("仅展示本总单获准查看的配送子单，不显示其他客户姓名、电话、订单号或站点。")
 
 if st.button("更新订单状态", key="refresh_tracking_status"):
@@ -98,7 +99,7 @@ def render_live_tracking() -> None:
         st.caption("配送途中每 10 秒更新车辆位置，保留地图视角；工作人员确认送达后停止自动更新。")
     else:
         st.caption("当前地图不自动更新。需要查看最新调度或发车状态时，点击“更新订单状态”。")
-    st.caption("蓝色鲜面条、橙色姜蒜路线均为已确认的 Dijkstra 路线。车辆位置为演示仿真，不是车载 GPS 实时数据。")
+    st.caption("蓝色鲜面条、橙色姜蒜路线均为已确认的 道路最短路径。车辆位置为演示仿真，不是车载定位实时数据。")
 
 
 render_live_tracking()

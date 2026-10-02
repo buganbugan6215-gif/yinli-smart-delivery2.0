@@ -4,6 +4,7 @@ ensure_current_release()
 from datetime import time
 import pandas as pd
 import streamlit as st
+from 功能组件_页面共用代码.ui import display_table
 from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint
 from 功能组件_页面共用代码.batch_solver import solve_batch
 from 功能组件_页面共用代码.order_state import pricing_settings
@@ -28,9 +29,9 @@ with overview:
         summary = order_summary(orders)
         cols = st.columns(4)
         for col, (label, value) in zip(cols, summary.items()):
-            col.metric(label, value)
+            col.metric(label.replace("_kg", "（千克）"), value)
         frame = pd.DataFrame(orders)
-        st.dataframe(frame.groupby(["品类", "状态"], as_index=False).agg(子单数=("订单编号", "count"), 货量_kg=("配送重量_kg", "sum")), hide_index=True, use_container_width=True)
+        display_table(frame.groupby(["品类", "状态"], as_index=False).agg(子单数=("订单编号", "count"), 货量_kg=("配送重量_kg", "sum")), hide_index=True, use_container_width=True)
         plan = get_batch(day)
         if not plan:
             st.info("尚未确认调度方案，暂无计划里程与车辆成本。可在方案对比中试算。")
@@ -38,8 +39,8 @@ with overview:
         rows = plan_metrics(plan)
         st.markdown("### 已确认方案的计划成本")
         st.caption("按确认时车辆参数计算固定成本与里程成本；不代表实际结算，不计未建模的制冷、货损及罚款。")
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-        st.write(f"计划总里程 {sum(r['里程_km'] for r in rows):.2f} km · 固定及里程成本 ¥ {sum(r['固定及里程成本_元'] for r in rows):.2f}")
+        display_table(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.write(f"计划总里程 {sum(r['里程_km'] for r in rows):.2f} 公里 · 固定及里程成本 ¥ {sum(r['固定及里程成本_元'] for r in rows):.2f}")
     render_summary()
 
 with comparison:
@@ -61,6 +62,6 @@ with comparison:
             if result["输入指纹"] != input_fingerprint(day_orders(day)) or result["参数"] != pricing_settings() or result["发车分钟"] != minutes:
                 st.warning("订单、参数或发车时间已变化，原对比失效，请重新计算。")
             else:
-                st.dataframe(pd.DataFrame(result["结果"]), hide_index=True, use_container_width=True)
+                display_table(pd.DataFrame(result["结果"]), hide_index=True, use_container_width=True)
                 st.caption("两种方法均为启发式；可能得到相同结果，不保证全局最优。")
     render_comparison()

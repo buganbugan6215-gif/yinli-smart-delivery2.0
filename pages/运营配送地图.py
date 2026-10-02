@@ -14,7 +14,7 @@ from 功能组件_页面共用代码.ui import inject_css, page_title, render_si
 inject_css()
 render_sidebar()
 require_staff_access()
-page_title("运营配送地图", "按配送日查看已统一确认的全部线路，仅工作人员可见")
+page_title("配送地图", "按配送日查看已统一确认的全部线路，仅工作人员可见")
 day = select_delivery_day(st, historical=True)
 batch = get_batch(day)
 if not batch:
@@ -34,4 +34,4 @@ for order in day_orders(day):
 add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
 folium.LayerControl(collapsed=False).add_to(fmap)
 st_folium(fmap, use_container_width=True, height=650, returned_objects=[])
-st.caption("各色线路为本配送日已确认的道路路径；包含返回配送中心路段。此地图不展示实时 GPS。")
+st.caption("各色线路为本配送日已确认的道路路径；包含返回配送中心路段。此地图不展示实时定位。")

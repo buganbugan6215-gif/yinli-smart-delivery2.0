@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+RELEASE_VERSION = "2026-10-03-unified-interface-v4.2"
 
 import html
+import inspect
+import pandas as pd
 from typing import Any
 
 import streamlit as st
@@ -16,16 +18,20 @@ def inject_css() -> None:
         <style>
         [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stDecoration"], #MainMenu { display:none!important; }
         [data-testid="stDownloadButton"] button p, button[kind="primary"] p { color:inherit!important; }
-        :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#f5f7fb; --surface:#ffffff; --surface-blue:#eef4ff; --line:#dfe7f1; --muted:#718096; --brand:#1750df; --brand-dark:#103c9e; --accent:#ff8133; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
+        :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#f5f7fb; --surface:#ffffff; --surface-blue:#eef4ff; --line:#dfe7f1; --muted:#53647a; --brand:#1750df; --brand-dark:#103c9e; --accent:#bd5800; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
         .stApp { background:var(--paper); color:var(--ink); font-family:'Microsoft YaHei UI','Microsoft YaHei','Segoe UI',sans-serif; }
-        [data-testid='stHeader'] { background:rgba(245,247,251,.94); }
+        [data-testid='stHeader'] { height:0!important; min-height:0!important; max-height:0!important; padding:0!important; background:transparent!important; border:0!important; box-shadow:none!important; pointer-events:none; overflow:visible!important; }
+        [data-testid='stToolbar'] { height:0!important; min-height:0!important; overflow:visible!important; background:transparent!important; }
+        [data-testid='stHeader'] button { pointer-events:auto; }
+        [data-testid='stSidebarCollapseButton'] button { visibility:visible!important; }
+        [data-testid='stExpandSidebarButton'] { position:fixed!important; top:.65rem; left:.65rem; background:var(--surface)!important; border:1px solid var(--line); border-radius:8px; }
         [data-testid='stSidebar'] { background:#eef3f9; border-right:1px solid var(--line); }
         [data-testid='stSidebar'] * { color:var(--ink); }
         [data-testid='stSidebarNav'] { display:none!important; }
         html { scroll-behavior:smooth; }
         ::selection { background:rgba(255,129,51,.24); color:var(--ink); }
         * { scrollbar-width:thin; scrollbar-color:#aebbd0 transparent; }
-        .block-container { max-width:1360px; padding-top:1.35rem; padding-bottom:3.5rem; }
+        .block-container { max-width:1360px; padding-top:3.6rem; padding-bottom:3.5rem; }
         h1,h2,h3,h4 { color:var(--ink); letter-spacing:-.025em; }
         h1 { font-size:2.65rem!important; line-height:1.12!important; font-weight:800!important; }
         h2 { font-size:1.9rem!important; line-height:1.2!important; }
@@ -232,10 +238,72 @@ def inject_css() -> None:
         @supports (animation-timeline: view()) { .metric-card, .route-board, .note-panel, .home-reveal, [data-testid='stMetric'], [data-testid='stPlotlyChart'], [data-testid='stDataFrame'] { animation-name:reveal-on-scroll; animation-duration:1ms; animation-fill-mode:both; animation-timeline:view(); animation-range:entry 5% cover 28%; animation-delay:0ms; } }
         @media (max-width: 800px) { h1 { font-size:2rem!important; } .hero-panel { grid-template-columns:1fr; padding:1.3rem; } .hero-index { border-left:0; border-top:1px solid rgba(255,255,255,.25); padding:1rem 0 0; } .block-container { padding-left:1rem; padding-right:1rem; } .home-nav-copy { display:none; } .st-key-home_hero { padding:1.2rem; border-radius:20px; } .home-hero-copy h1 { max-width:12ch; font-size:2.75rem!important; } .home-proof { grid-template-columns:repeat(2,1fr); margin-bottom:4rem; padding:.8rem 0; } .home-proof>div { padding:.8rem; } .home-proof>div:nth-child(2) { border-right:0; } .home-proof>div:nth-child(-n+2) { border-bottom:1px solid var(--line); } .home-bento { grid-template-columns:1fr; margin-bottom:4rem; } .home-feature-large { grid-row:auto; min-height:330px; } .home-flow { grid-template-columns:1fr; } .home-flow-item { min-height:auto; } .home-flow-item b { margin-bottom:.5rem; } .st-key-home_flow { padding:1.25rem; } [class*='st-key-entry_'] { min-height:0; margin-bottom:.5rem; } .home-final { border-radius:18px 18px 0 0; } .service-hero { grid-template-columns:1fr; padding:1.4rem; } .service-orbit { min-height:120px; } .service-assurance { grid-template-columns:1fr; } .service-assurance div { border-right:0; border-bottom:1px solid var(--line); } .fee-preview { grid-template-columns:1fr; } .fee-preview strong { grid-row:auto; } .map-order-head { grid-template-columns:1fr; } .map-order-head>div { border-right:0; border-bottom:1px solid var(--line); } .map-order-head>div:last-child { border-bottom:0; } .tracking-head { align-items:flex-start; flex-direction:column; } .tracking-state { justify-items:start; } .delivery-track { overflow-x:auto; grid-template-columns:repeat(6,110px); padding-bottom:.8rem; } .delivery-track::before,.delivery-track-fill { left:55px; right:55px; } .delivery-track-fill { right:auto; width:calc(var(--track) * 5.5); } .detail-sheet div { grid-template-columns:1fr; gap:.25rem; } .demo-banner { align-items:flex-start; flex-direction:column; } .integration-rail { grid-template-columns:repeat(2,1fr); } .integration-rail>div:nth-child(2) { border-right:0; } .pulse-route { display:none; } }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; transform:none!important; filter:none!important; } }
+        [data-testid='stDataFrame'] [data-testid='stElementToolbar'] { display:none!important; }
+        /* 全站共享：深蓝导航、清晰反馈、无覆盖顶栏。 */
+        [data-testid='stPageLink-NavLink'] [data-testid='stIconMaterial'] { color:var(--brand-dark)!important; font-size:1.25rem!important; width:1.25rem!important; height:1.25rem!important; flex-shrink:0; font-variation-settings:'FILL' 0,'wght' 350,'GRAD' 0,'opsz' 24; }
+        [data-testid='stSidebar'] [data-testid='stPageLink-NavLink'] { box-shadow:none; border:0!important; border-radius:9px; min-height:2.85rem; padding:.65rem .85rem; background:transparent!important; }
+        [data-testid='stSidebar'] [data-testid='stPageLink-NavLink']:hover { background:#e1eafa!important; transform:translateX(2px); box-shadow:none; }
+        [data-testid='stSidebar'] [data-testid='stPageLink-NavLink'][aria-current='page'] { background:#dee8fb!important; color:var(--brand-dark)!important; }
+        .home-hero-copy h1,.home-section h2,.home-final h2 { letter-spacing:-.025em; line-height:1.16!important; }
+        .home-brand span { min-width:42px; width:auto; padding:0 .35rem; color:#fff!important; }
+        .home-nav-copy { color:var(--ink-soft); }
+        .st-key-home_hero,.service-hero,.home-feature,.home-final { border-radius:16px; }
+        .st-key-home_hero { box-shadow:none; background:#edf3fd; }
+        .home-feature { box-shadow:none; }
+        .home-feature:hover { transform:translateY(-2px); box-shadow:none; }
+        .home-bento { margin-bottom:3rem; }
+        .st-key-home_flow { margin-bottom:3rem; border-radius:16px; }
+        [class*='st-key-entry_'] { min-height:140px; margin-bottom:2.5rem; box-shadow:none; }
+        [class*='st-key-entry_']:hover { transform:translateY(-2px); box-shadow:none; }
+        [class*='st-key-entry_'] [data-testid='stPageLink-NavLink'] { gap:.45rem; padding:.65rem 0; }
+        .home-feature p { color:var(--ink-soft); }
+        .home-feature-blue p,.home-feature-dark p { color:#e0eaff; }
+        .stButton>button[kind='primary'] { background:var(--brand); border-color:var(--brand); box-shadow:none; }
+        .stButton>button[kind='primary']:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
+        .stButton>button:hover { color:var(--brand-dark); border-color:var(--brand-dark); background:var(--surface-blue); }
+        button:focus-visible,a:focus-visible { outline-color:var(--brand)!important; }
+        input,textarea { caret-color:var(--brand); }
+        .page-kicker,.hero-kicker { display:none; }
+        .service-hero::after,.service-orbit span,.st-key-home_hero::before { animation:none; }
+        .service-orbit { backdrop-filter:none; }
+        .service-orbit span { display:none; }
+        .service-hero { min-height:230px; box-shadow:none; }
+        .tracking-state i { animation-iteration-count:3; }
+        .motion-focus,.motion-reveal,.st-key-home_hero .home-hero-copy { animation:interface-arrive .38s cubic-bezier(.16,1,.3,1) both; }
+        .metric-card,.route-board,.note-panel,[data-testid='stMetric'],[data-testid='stPlotlyChart'],[data-testid='stDataFrame'],.home-reveal { animation:none; opacity:1; filter:none; transform:none; }
+        [data-testid='stTabs'] [role='tab'],[data-testid='stCheckbox'] label,[data-testid='stExpander'] summary { transition:color .16s ease,background-color .16s ease; }
+        [data-testid='stTabs'] [role='tab']:hover,[data-testid='stExpander'] summary:hover { color:var(--brand); }
+        [data-testid='stAlert'] { animation:feedback-arrive .22s ease-out; }
+        .pulse-route i { animation:route-run 3s ease-in-out 3; }
+        @keyframes interface-arrive { from { opacity:.8; transform:translateY(6px); } to { opacity:1; transform:none; } }
+        @keyframes feedback-arrive { from { opacity:.65; } to { opacity:1; } }
+        @media(max-width:800px) { .block-container { padding-top:3.4rem; } .home-hero-copy h1 { font-size:2.2rem!important; } .service-hero { min-height:0; gap:1rem; } .service-orbit { min-height:70px; } }
+        @media(prefers-reduced-motion:reduce) { button,a,input,[role='tab'] { transition:color .12s ease,background-color .12s ease!important; } }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+CUSTOMER_PAGES = [
+    ("app.py", "网站首页"),
+    ("pages/客户下单.py", "客户下单"),
+    ("pages/订单追踪.py", "订单追踪"),
+    ("pages/配送网络地图.py", "我的配送地图"),
+    ("pages/电子签收.py", "确认签收"),
+]
+NAV_ICONS = {
+    "app.py": ":material/home:",
+    "pages/客户下单.py": ":material/add_shopping_cart:",
+    "pages/订单追踪.py": ":material/manage_search:",
+    "pages/配送网络地图.py": ":material/map:",
+    "pages/电子签收.py": ":material/task_alt:",
+    "pages/订单与需求.py": ":material/receipt_long:",
+    "pages/企业工作台.py": ":material/route:",
+    "pages/运营配送地图.py": ":material/local_shipping:",
+    "pages/成本与绩效.py": ":material/analytics:",
+    "pages/车辆与计价.py": ":material/tune:",
+}
 
 
 STAFF_PAGES = [
@@ -249,16 +317,12 @@ STAFF_PAGES = [
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("<div class='brand-mark'>YL</div>", unsafe_allow_html=True)
+        st.markdown("<div class='brand-mark'>银犁</div>", unsafe_allow_html=True)
         st.markdown("<div class='brand-name'>银犁智慧配送</div>", unsafe_allow_html=True)
         st.caption("下单、追踪、地图与签收")
         st.divider()
-        with st.expander("客户服务", expanded=not st.session_state.get("staff_authenticated", False)):
-            st.page_link("app.py", label="网站首页")
-            st.page_link("pages/客户下单.py", label="客户下单")
-            st.page_link("pages/订单追踪.py", label="订单追踪")
-            st.page_link("pages/配送网络地图.py", label="我的配送地图")
-            st.page_link("pages/电子签收.py", label="确认签收")
+        for path, label in CUSTOMER_PAGES:
+            st.page_link(path, label=label, icon=NAV_ICONS[path])
         st.divider()
         st.markdown("<div class='nav-section-label'>工作人员</div>", unsafe_allow_html=True)
         if not st.session_state.get("staff_authenticated", False):
@@ -266,7 +330,7 @@ def render_sidebar() -> None:
             if password:
                 configured_password = staff_password()
                 if not configured_password:
-                    st.error("未配置工作人员密码。请通过 YL_STAFF_PASSWORD 环境变量配置。")
+                    st.error("工作人员入口尚未启用，请联系平台管理员配置登录密码。")
                 elif password == configured_password:
                     st.session_state["staff_authenticated"] = True
                     st.rerun()
@@ -275,7 +339,7 @@ def render_sidebar() -> None:
             return
         st.caption("已获得工作人员权限")
         for path, label in STAFF_PAGES:
-            st.page_link(path, label=label)
+            st.page_link(path, label=label, icon=NAV_ICONS[path])
 
 
 
@@ -312,3 +376,24 @@ def fmt_num(value: Any, digits: int = 1) -> str:
 
 def plotly_config() -> dict[str, Any]:
     return {"displayModeBar": False, "responsive": True}
+
+
+def chinese_multiselect(label, options, **kwargs):
+    """中文占位；兼容旧版本，移除组件自带的英文全选项。"""
+    kwargs.setdefault("placeholder", "请选择，可多选")
+    if "select_all" in inspect.signature(st.multiselect).parameters:
+        kwargs["select_all"] = False
+    return st.multiselect(label, options, **kwargs)
+
+
+def chinese_column(label):
+    return (str(label).replace("路线GeoJSON", "路线道路数据").replace("_元每km", "（元/公里）")
+            .replace("_元每kg", "（元/千克）").replace("_kmh", "（公里/小时）")
+            .replace("_kg", "（千克）").replace("_km", "（公里）").replace("_分钟", "（分钟）")
+            .replace("_元", "（元）").replace("_m", "（米）"))
+
+
+def display_table(data, **kwargs):
+    frame = data.copy() if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
+    frame = frame.rename(columns=chinese_column)
+    return st.dataframe(frame, **kwargs)

@@ -6,15 +6,15 @@ from 功能组件_页面共用代码.calendar_runtime import ensure_current_cale
 
 ensure_current_calendar()
 
-from 功能组件_页面共用代码.ui import inject_css, render_sidebar
+from 功能组件_页面共用代码.ui import inject_css, render_sidebar, CUSTOMER_PAGES, NAV_ICONS
 
-st.set_page_config(page_title="银犁智慧配送", page_icon="YL", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="银犁智慧配送", page_icon=":material/local_shipping:", layout="wide", initial_sidebar_state="collapsed")
 inject_css()
 render_sidebar()
 
 st.markdown("""
 <div class="home-nav">
-  <div class="home-brand"><span>YL</span><strong>银犁智慧配送</strong></div>
+  <div class="home-brand"><span>银犁</span><strong>银犁智慧配送</strong></div>
   <div class="home-nav-copy">让每一次配送都有清楚的答案</div>
 </div>
 """, unsafe_allow_html=True)
@@ -69,16 +69,15 @@ with st.container(key="home_flow"):
 st.markdown("<section class='home-section home-reveal'><h2>按您关心的内容直接进入。</h2></section>", unsafe_allow_html=True)
 entry_cols = st.columns(4, gap="medium")
 entries = [
-    ("pages/客户下单.py", "客户下单", "提交配送需求", "▤"),
-    ("pages/订单追踪.py", "订单追踪", "查看处理进度", "◎"),
-    ("pages/配送网络地图.py", "配送地图", "看位置与路线", "◇"),
-    ("pages/电子签收.py", "电子签收", "确认收货或反馈异常", "✦"),
+    ("pages/客户下单.py", "客户下单", "提交配送需求"),
+    ("pages/订单追踪.py", "订单追踪", "查看处理进度"),
+    ("pages/配送网络地图.py", "我的配送地图", "看位置与路线"),
+    ("pages/电子签收.py", "确认签收", "确认收货或反馈异常"),
 ]
-for col, (page, title, copy, icon) in zip(entry_cols, entries):
+for col, (page, title, copy) in zip(entry_cols, entries):
     with col:
         with st.container(key=f"entry_{title}"):
-            st.markdown(f"<div class='entry-icon'>{icon}</div>", unsafe_allow_html=True)
-            st.page_link(page, label=title, use_container_width=True)
+            st.page_link(page, label=title, icon=NAV_ICONS[page], use_container_width=True)
             st.caption(copy)
 
 st.markdown("""

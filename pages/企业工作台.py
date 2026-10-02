@@ -4,6 +4,7 @@ ensure_current_release()
 from datetime import time
 import pandas as pd
 import streamlit as st
+from 功能组件_页面共用代码.ui import display_table
 from 功能组件_页面共用代码.calendar_runtime import ensure_current_calendar
 
 ensure_current_calendar()
@@ -32,7 +33,7 @@ with order_tab:
     batch = get_batch(day)
     stats = st.columns(3)
     stats[0].metric("本批次订单", len(orders))
-    stats[1].metric("总货量 kg", f"{sum(float(o['配送重量_kg']) for o in orders):,.1f}")
+    stats[1].metric("总货量（千克）", f"{sum(float(o['配送重量_kg']) for o in orders):,.1f}")
     stats[2].metric("批次状态", "已统一确认" if batch else "已截止，待调度" if closed else "正在收单")
     if not orders:
         st.info("本配送日暂无订单，收到订单后可计算整批线路。")
@@ -59,11 +60,11 @@ with order_tab:
             if stale:
                 st.warning("订单、车辆参数或计划发车时间已变化，请重新计算后确认。")
             st.markdown("### 整批方案预览")
-            st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k not in {"路线GeoJSON", "订单编号列表"}} for r in plan["线路"]]), hide_index=True, use_container_width=True)
-            st.caption(plan["算法"] + "；无法覆盖全部订单时不允许发布部分方案。")
+            display_table(pd.DataFrame([{k:v for k,v in r.items() if k not in {"路线GeoJSON", "订单编号列表"}} for r in plan["线路"]]), hide_index=True, use_container_width=True)
+            st.caption(plan["算法"].replace("Dijkstra", "道路最短路径算法") + "；无法覆盖全部订单时不允许发布部分方案。")
             with st.expander("核对全部订单分配和最短距离矩阵"):
-                st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]), hide_index=True, use_container_width=True)
-                st.dataframe(pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"]), use_container_width=True)
+                display_table(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]), hide_index=True, use_container_width=True)
+                display_table(pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"]), use_container_width=True)
             if st.button("统一确认全部线路并开始备货", type="primary", disabled=stale, use_container_width=True):
                 try:
                     confirm_batch(plan)
@@ -73,7 +74,7 @@ with order_tab:
                     st.error(str(exc))
     if batch:
         st.success(f"本配送日 {len(batch['订单结果'])} 个订单、{len(batch['线路'])} 条线路已统一确认。")
-        st.dataframe(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in batch["订单结果"]]), hide_index=True, use_container_width=True)
+        display_table(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in batch["订单结果"]]), hide_index=True, use_container_width=True)
         statuses = {o["状态"] for o in orders}
         for label, target, required in [("全部车辆发出，开始配送", "配送途中", "仓库备货中"), ("确认本批次全部货物已送达", "已送达", "配送途中")]:
             if st.button(label, disabled=statuses != {required}, use_container_width=True):
@@ -85,4 +86,4 @@ with order_tab:
         st.caption("全部送达按钮仅在所有货物实际到达后操作；每位客户独立确认自己的签收。")
         st.download_button("下载整批距离矩阵与线路清单", workbook_bytes(batch), f"{day}_距离矩阵与线路.xlsx")
         with st.expander("查看本配送日完整最短距离矩阵（米）"):
-            st.dataframe(pd.DataFrame(batch["距离矩阵_m"], index=batch["矩阵标签"], columns=batch["矩阵标签"]), use_container_width=True)
+            display_table(pd.DataFrame(batch["距离矩阵_m"], index=batch["矩阵标签"], columns=batch["矩阵标签"]), use_container_width=True)

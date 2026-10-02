@@ -2,6 +2,7 @@ from 功能组件_页面共用代码.release_runtime import ensure_current_relea
 ensure_current_release()
 
 import streamlit as st
+from 功能组件_页面共用代码.ui import chinese_multiselect
 
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders, customer_update
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
@@ -22,7 +23,7 @@ active = st.session_state.get("active_order_id", ids[0])
 selected = st.selectbox("选择订单", ids, index=ids.index(active) if active in ids else 0)
 order = customer_order(selected)
 
-st.markdown(f"<div class='receipt-head motion-focus'><span>{order['订单编号']}</span><h2>{order['客户名称']}</h2><p>{order['品类']} · {order['配送重量_kg']:,.0f} kg · {order['收货地址']}</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='receipt-head motion-focus'><span>{order['订单编号']}</span><h2>{order['客户名称']}</h2><p>{order['品类']} · {order['配送重量_kg']:,.0f} 千克 · {order['收货地址']}</p></div>", unsafe_allow_html=True)
 
 if order.get("状态") == "签收完成":
     st.success("该订单已确认签收。")
@@ -44,7 +45,7 @@ st.divider()
 with st.expander("异常反馈", expanded=False):
     st.caption("包装、数量、温度或送达时间存在问题时，请提交情况说明。")
     with st.form("exception_form"):
-        problems = st.multiselect("异常类型", ["包装破损", "数量不符", "温度异常", "送达延迟", "其他"])
+        problems = chinese_multiselect("异常类型", ["包装破损", "数量不符", "温度异常", "送达延迟", "其他"])
         detail = st.text_area("异常情况说明", placeholder="请描述发现的问题，便于工作人员尽快处理")
         callback = st.checkbox(f"需要客服回电至 {order.get('联系电话', '订单联系电话')}")
         submitted = st.form_submit_button("提交异常反馈", use_container_width=True)
