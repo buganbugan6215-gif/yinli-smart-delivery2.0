@@ -21,6 +21,12 @@ def load_geojson(name: str) -> dict[str, Any]:
 
 def create_chengdu_map(zoom_start: int = 10) -> tuple[folium.Map, folium.GeoJson | None]:
     fmap = folium.Map(location=DEPOT, zoom_start=zoom_start, tiles=None, control_scale=True, prefer_canvas=True)
+    fmap.get_root().header.add_child(folium.Element("""<style>
+    .leaflet-container { background:#e1e9f5; }
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip,.leaflet-tooltip,
+    .leaflet-control-layers,.leaflet-bar a,.leaflet-control-attribution { background:#e7edf7; color:#1d2a3a; }
+    .leaflet-bar a:hover { background:#dbe5f5; }
+    </style>"""))
     # 只绘制随项目交付的道路 GeoJSON，断网时地图仍可运行。
 
     major_data = load_geojson("road_major.geojson")

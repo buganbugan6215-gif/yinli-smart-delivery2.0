@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-soft-cards-v6"
+RELEASE_VERSION = "2026-10-03-soft-surfaces-v7"
 
 from functools import lru_cache
 import gzip
