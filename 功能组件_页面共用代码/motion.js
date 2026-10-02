@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const version = '2026-10-03-gsap-v9.1';
+  const version = '2026-10-03-balanced-motion-v11';
   if (!window.gsap || window.__ylMotion?.version === version) return;
   window.__ylMotion?.dispose();
   const g = window.gsap, root = document.documentElement;
@@ -19,6 +19,10 @@
     fresh.forEach(el => seen.add(el));
     if (reduced) return;
     fresh.forEach((el, i) => {
+      if (el.matches('.home-feature')) {
+        const line = el.querySelector('.feature-line');
+        if (line) g.fromTo(line, {scaleX: 0.25}, {scaleX: 1, transformOrigin: 'left center', duration: 0.65, ease: 'power2.out', overwrite: 'auto'});
+      }
       const fill = el.matches('.delivery-track-fill');
       g.fromTo(el, fill ? {scaleX: 0.92, transformOrigin: 'left center'} : {y: 6, opacity: 0.88},
         {...(fill ? {scaleX: 1} : {y: 0, opacity: 1}), duration: fill ? 0.5 : 0.32,
@@ -47,8 +51,8 @@
     reduced = context.conditions.reduce;
     root.dataset.ylMotionReduced = String(reduced);
     if (reduced) {
-      g.killTweensOf(entrance + ',' + controls);
-      g.set(document.querySelectorAll(entrance + ',' + controls), {clearProps: 'transform,opacity'});
+      g.killTweensOf(entrance + ',' + controls + ',.feature-line');
+      g.set(document.querySelectorAll(entrance + ',' + controls + ',.feature-line'), {clearProps: 'transform,opacity'});
     }
   });
   root.dataset.ylMotion = version;
@@ -56,6 +60,10 @@
     const el = target(event);
     if (!el || reduced || !fine() || el.contains(event.relatedTarget)) return;
     g.to(el, {y: -2, duration: 0.18, ease: 'power2.out', overwrite: 'auto'});
+    if (el.matches('.home-feature')) {
+      const line = el.querySelector('.feature-line');
+      if (line) g.fromTo(line, {scaleX: 0.55}, {scaleX: 1, duration: 0.45, ease: 'power2.out', overwrite: 'auto'});
+    }
   });
   on('pointerout', event => {
     const el = target(event);
@@ -84,8 +92,8 @@
   window.__ylMotion = {version, dispose() {
     observer.disconnect(); view.disconnect(); cancelAnimationFrame(frame); media.revert();
     events.forEach(([type, handler]) => document.removeEventListener(type, handler));
-    g.killTweensOf(entrance + ',' + controls);
-    g.set(document.querySelectorAll(entrance + ',' + controls), {clearProps: 'transform,opacity'});
+    g.killTweensOf(entrance + ',' + controls + ',.feature-line');
+    g.set(document.querySelectorAll(entrance + ',' + controls + ',.feature-line'), {clearProps: 'transform,opacity'});
     delete root.dataset.ylMotion;
   }};
 })();

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-layout-focus-v10"
+RELEASE_VERSION = "2026-10-03-balanced-motion-v11"
 
 import html
 import inspect

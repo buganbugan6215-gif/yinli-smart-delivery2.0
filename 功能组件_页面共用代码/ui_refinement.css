@@ -122,3 +122,16 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible {
   .st-key-home_final { padding:24px; }
   .st-key-home_final .home-final { padding:0; }
 }
+/* 四张卡片使用同一层级与同一条动画装饰线。 */
+.home-feature,.home-feature-large,.home-feature-blue,.home-feature-light,.home-feature-dark { background:#e4ebf6; border-color:#cbd7e8; }
+.home-feature p { padding-bottom:28px; }
+.feature-line { height:2px; background:linear-gradient(90deg,#3158c9,#9ab0e4); transform-origin:left center; animation:none; }
+.feature-line::after { left:auto; right:0; top:-3px; width:8px; height:8px; background:#496bc5; box-shadow:0 0 0 4px rgba(73,107,197,.08); }
+.st-key-home_final { padding:28px 32px; background:#243f86; }
+.st-key-home_final .home-final h2 { font-size:1.4rem!important; padding:0!important; margin:0 0 12px!important; }
+.st-key-home_final .home-final p { font-size:.95rem; color:#dbe5fb; margin:0; }
+.st-key-home_final [data-testid='stPageLink'] { margin:0; }
+.st-key-home_final [data-testid='stPageLink-NavLink'] { width:100%; min-width:0; min-height:52px; justify-content:center; background:rgba(255,255,255,.08)!important; border:1px solid #91a8db!important; color:#f0f4ff!important; border-radius:10px; }
+.st-key-home_final [data-testid='stPageLink-NavLink'] p { color:#f0f4ff!important; font-weight:600; white-space:nowrap; }
+.st-key-home_final [data-testid='stPageLink-NavLink']:hover { background:rgba(255,255,255,.16)!important; border-color:#c1d0ed!important; }
+@media(max-width:800px) { .st-key-home_final { padding:24px; } }
