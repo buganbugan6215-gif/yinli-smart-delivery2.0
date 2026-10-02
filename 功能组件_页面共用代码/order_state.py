@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-soft-surfaces-v7"
+RELEASE_VERSION = "2026-10-03-uiux-review-v8"
 
 from datetime import date, datetime
 import json

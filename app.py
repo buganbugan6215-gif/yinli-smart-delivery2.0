@@ -24,13 +24,14 @@ with st.container(key="home_hero"):
     with hero_copy:
         st.markdown("""
         <div class="home-hero-copy">
-          <h1>每日八点截单，统一安排配送。</h1>
+          <h1>每日八点截单，<br>统一安排配送。</h1>
           <p>北京时间每日 20:00 截止次日订单，截止后最早后天配送。可预约更晚日期，鲜面条与姜蒜一次提交、分车配送。</p>
         </div>
         """, unsafe_allow_html=True)
         action_a, action_b = st.columns(2)
         with action_a:
-            st.page_link("pages/客户下单.py", label="立即下单", use_container_width=True)
+            with st.container(key="home_primary"):
+                st.page_link("pages/客户下单.py", label="立即下单", use_container_width=True)
         with action_b:
             st.page_link("pages/订单追踪.py", label="查询订单", use_container_width=True)
         st.caption("目前支持鲜面条和姜蒜配送，费用在提交前清楚展示。")

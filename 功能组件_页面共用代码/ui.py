@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-soft-surfaces-v7"
+RELEASE_VERSION = "2026-10-03-uiux-review-v8"
 
 import html
 import inspect
+from pathlib import Path
 import pandas as pd
 from typing import Any
 
@@ -302,6 +303,8 @@ def inject_css() -> None:
         """,
         unsafe_allow_html=True,
     )
+    theme = Path(__file__).with_name("ui_refinement.css").read_text(encoding="utf-8")
+    st.markdown(f"<style>{theme}</style>", unsafe_allow_html=True)
 
 
 CUSTOMER_PAGES = [

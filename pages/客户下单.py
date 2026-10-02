@@ -23,11 +23,11 @@ page_title("客户下单", "填写收货信息和送达时间，提交前即可�
 with st.container(key="order_receiver"):
     st.markdown("### 收货信息")
     c1, c2 = st.columns(2)
-    customer = c1.text_input("客户名称", placeholder="例如：青羊区某门店")
-    contact = c2.text_input("联系人", placeholder="收货联系人")
+    customer = c1.text_input("客户名称", placeholder="例如：青羊区某门店", help="必填，用于标识收货门店。")
+    contact = c2.text_input("联系人", placeholder="收货联系人", help="必填，填写可联系到的收货人。")
     c3, c4 = st.columns([1.4, 1])
-    address = c3.text_input("收货地址", placeholder="请填写详细地址，例如：成都市青羊区人民中路一段")
-    phone = c4.text_input("联系电话", placeholder="用于配送联系")
+    address = c3.text_input("收货地址", placeholder="请填写详细地址，例如：成都市青羊区人民中路一段", help="必填，需包含城市、区县、街道及门牌号。")
+    phone = c4.text_input("联系电话", placeholder="用于配送联系", help="必填，用于配送联系及订单查询验证。")
 
     if "order_coordinates" not in st.session_state:
         st.session_state["order_coordinates"] = None
@@ -90,6 +90,8 @@ with fee_col:
     rows = "".join(f"<div class='order-fee-row'><span>{q['品类']} · {q['重量_kg']:g} 千克</span><b>¥ {q['预估配送费_元']:,.2f}</b></div>" for q in quotes)
     total = sum(q['预估配送费_元'] for q in quotes)
     st.markdown(f"<div class='order-fee'><h4>预估费用</h4>{rows}<div class='order-fee-total'><span>合计</span><strong>¥ {total:,.2f}</strong></div></div>", unsafe_allow_html=True)
+    if not coordinates:
+        st.caption("尚未定位地址，当前预估未计里程费；识别地址后自动更新。")
     st.caption("各品类分别计起步价、重量价及里程价，提交时按最新参数核算。")
 if st.button("提交配送订单", type="primary", use_container_width=True):
     missing = [name for name, value in [("客户名称", customer), ("收货地址", address), ("联系人", contact), ("联系电话", phone)] if not value.strip()]
