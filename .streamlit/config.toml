@@ -14,3 +14,7 @@ maxUploadSize = 200
 
 [browser]
 gatherUsageStats = false
+
+[client]
+showSidebarNavigation = false
+toolbarMode = "minimal"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-unified-interface-v4.2"
+RELEASE_VERSION = "2026-10-03-order-layout-v5.1"
 
 import html
 import inspect
@@ -16,9 +16,9 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
-        [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stDecoration"], #MainMenu { display:none!important; }
+        [data-testid="stStatusWidget"], [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stDecoration"], #MainMenu { display:none!important; }
         [data-testid="stDownloadButton"] button p, button[kind="primary"] p { color:inherit!important; }
-        :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#f5f7fb; --surface:#ffffff; --surface-blue:#eef4ff; --line:#dfe7f1; --muted:#53647a; --brand:#1750df; --brand-dark:#103c9e; --accent:#bd5800; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
+        :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#f5f7fb; --surface:#ffffff; --surface-blue:#eef4ff; --line:#dfe7f1; --muted:#53647a; --brand:#1750df; --brand-dark:#103c9e; --accent:#ff8133; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
         .stApp { background:var(--paper); color:var(--ink); font-family:'Microsoft YaHei UI','Microsoft YaHei','Segoe UI',sans-serif; }
         [data-testid='stHeader'] { height:0!important; min-height:0!important; max-height:0!important; padding:0!important; background:transparent!important; border:0!important; box-shadow:none!important; pointer-events:none; overflow:visible!important; }
         [data-testid='stToolbar'] { height:0!important; min-height:0!important; overflow:visible!important; background:transparent!important; }
@@ -279,6 +279,16 @@ def inject_css() -> None:
         @keyframes feedback-arrive { from { opacity:.65; } to { opacity:1; } }
         @media(max-width:800px) { .block-container { padding-top:3.4rem; } .home-hero-copy h1 { font-size:2.2rem!important; } .service-hero { min-height:0; gap:1rem; } .service-orbit { min-height:70px; } }
         @media(prefers-reduced-motion:reduce) { button,a,input,[role='tab'] { transition:color .12s ease,background-color .12s ease!important; } }
+        .brand-mark,.home-brand span { font-family:'Segoe UI',sans-serif; font-size:1rem; font-weight:800; letter-spacing:.02em; background:#304bea; border-radius:10px; box-shadow:0 5px 14px rgba(23,80,223,.12); }
+        .home-brand span { width:42px; height:42px; padding:0; }
+        .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:1.4rem 1.5rem; background:var(--surface); border:1px solid var(--line); border-radius:14px; margin-bottom:1rem; }
+        .st-key-order_receiver h3,.st-key-order_schedule h3,.st-key-order_cargo h3 { margin-top:0!important; margin-bottom:.65rem!important; }
+        .order-fee { padding:1.15rem; background:#f3f6fd; border-radius:10px; }
+        .order-fee h4 { margin:0 0 .6rem; font-size:1rem; }
+        .order-fee-row { display:flex; justify-content:space-between; gap:1rem; padding:.7rem 0; border-bottom:1px solid var(--line); color:var(--ink-soft); }
+        .order-fee-total { display:flex; align-items:baseline; justify-content:space-between; margin-top:1rem; color:var(--ink); }
+        .order-fee-total strong { color:var(--brand-dark); font-size:1.65rem; font-variant-numeric:tabular-nums; }
+        @media(max-width:800px) { .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:1rem; } }
         </style>
         """,
         unsafe_allow_html=True,
@@ -317,7 +327,7 @@ STAFF_PAGES = [
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("<div class='brand-mark'>银犁</div>", unsafe_allow_html=True)
+        st.markdown("<div class='brand-mark'>YL</div>", unsafe_allow_html=True)
         st.markdown("<div class='brand-name'>银犁智慧配送</div>", unsafe_allow_html=True)
         st.caption("下单、追踪、地图与签收")
         st.divider()

@@ -52,5 +52,6 @@ def test_staff_and_customer_pages_share_cutoff(tmp_path, monkeypatch, instant, c
     customer = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     customer.switch_page("pages/客户下单.py").run()
     assert not customer.exception
-    assert any(f"本次下单配送日：{day}" in i.value for i in customer.info)
+    assert customer.date_input[0].value.isoformat() == day
+    assert any(day in i.value for i in customer.caption)
     assert any("20:00" in c.value and "所选批次截止时间" in c.value for c in customer.caption)

@@ -14,7 +14,7 @@ render_sidebar()
 
 st.markdown("""
 <div class="home-nav">
-  <div class="home-brand"><span>银犁</span><strong>银犁智慧配送</strong></div>
+  <div class="home-brand"><span>YL</span><strong>银犁智慧配送</strong></div>
   <div class="home-nav-copy">让每一次配送都有清楚的答案</div>
 </div>
 """, unsafe_allow_html=True)

@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-unified-interface-v4.2"
+RELEASE_VERSION = "2026-10-03-order-layout-v5.1"
 
 import copy
 import hashlib
