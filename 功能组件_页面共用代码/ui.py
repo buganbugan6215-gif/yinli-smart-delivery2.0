@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-order-layout-v5.1"
+RELEASE_VERSION = "2026-10-03-soft-cards-v6"
 
 import html
 import inspect
@@ -279,9 +279,9 @@ def inject_css() -> None:
         @keyframes feedback-arrive { from { opacity:.65; } to { opacity:1; } }
         @media(max-width:800px) { .block-container { padding-top:3.4rem; } .home-hero-copy h1 { font-size:2.2rem!important; } .service-hero { min-height:0; gap:1rem; } .service-orbit { min-height:70px; } }
         @media(prefers-reduced-motion:reduce) { button,a,input,[role='tab'] { transition:color .12s ease,background-color .12s ease!important; } }
-        .brand-mark,.home-brand span { font-family:'Segoe UI',sans-serif; font-size:1rem; font-weight:800; letter-spacing:.02em; background:#304bea; border-radius:10px; box-shadow:0 5px 14px rgba(23,80,223,.12); }
-        .home-brand span { width:42px; height:42px; padding:0; }
-        .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:1.4rem 1.5rem; background:var(--surface); border:1px solid var(--line); border-radius:14px; margin-bottom:1rem; }
+        .brand-mark,.home-brand span { font-family:inherit; font-size:1rem; font-weight:800; letter-spacing:.05em; background:#304bea; border-radius:10px; box-shadow:0 5px 14px rgba(23,80,223,.12); }
+        .home-brand span { width:42px; height:42px; padding:0; font-size:.78rem; font-weight:900; letter-spacing:normal; }
+        .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:1.4rem 1.5rem; background:#edf2fa; border:1px solid #d8e2f0; border-radius:14px; margin-bottom:1rem; transition:background-color .2s ease,border-color .2s ease,transform .2s cubic-bezier(.16,1,.3,1); }
         .st-key-order_receiver h3,.st-key-order_schedule h3,.st-key-order_cargo h3 { margin-top:0!important; margin-bottom:.65rem!important; }
         .order-fee { padding:1.15rem; background:#f3f6fd; border-radius:10px; }
         .order-fee h4 { margin:0 0 .6rem; font-size:1rem; }
@@ -289,6 +289,11 @@ def inject_css() -> None:
         .order-fee-total { display:flex; align-items:baseline; justify-content:space-between; margin-top:1rem; color:var(--ink); }
         .order-fee-total strong { color:var(--brand-dark); font-size:1.65rem; font-variant-numeric:tabular-nums; }
         @media(max-width:800px) { .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { padding:1rem; } }
+        .st-key-order_receiver:focus-within,.st-key-order_schedule:focus-within,.st-key-order_cargo:focus-within { background:#e9f0fb; border-color:#a5bce2; }
+        @media(hover:hover) and (pointer:fine) { .st-key-order_receiver:hover,.st-key-order_schedule:hover,.st-key-order_cargo:hover { transform:translateY(-2px); border-color:#b2c4e2; } }
+        .st-key-order_receiver:focus-within,.st-key-order_schedule:focus-within,.st-key-order_cargo:focus-within { transform:none; }
+        .order-fee { background:#e3ebf7; }
+        @media(prefers-reduced-motion:reduce) { .st-key-order_receiver,.st-key-order_schedule,.st-key-order_cargo { transform:none!important; transition:background-color .12s ease,border-color .12s ease!important; } }
         </style>
         """,
         unsafe_allow_html=True,

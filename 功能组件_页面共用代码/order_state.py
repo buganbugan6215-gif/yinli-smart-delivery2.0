@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-order-layout-v5.1"
+RELEASE_VERSION = "2026-10-03-soft-cards-v6"
 
 from datetime import date, datetime
 import json
