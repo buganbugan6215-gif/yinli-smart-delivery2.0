@@ -1,5 +1,6 @@
 """通过真实 Streamlit 页面驱动整批操作；仅写临时测试数据库。"""
 from pathlib import Path
+from datetime import date
 
 from streamlit.testing.v1 import AppTest
 
@@ -26,6 +27,8 @@ def test_staff_compute_confirm_and_customer_lookup(tmp_path, monkeypatch):
     staff = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60).run()
     staff.session_state["staff_authenticated"] = True
     staff.switch_page("pages/企业工作台.py").run()
+    staff.selectbox[0].select("其他日期").run()
+    staff.date_input[0].set_value(date(2020, 1, 2)).run()
     assert not staff.exception
     button(staff, "一次计算全部订单的矩阵与线路").click().run()
     assert not staff.exception

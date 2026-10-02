@@ -1,3 +1,6 @@
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
+
 import streamlit as st
 
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
@@ -16,21 +19,23 @@ with own_tab:
     if orders:
         ids = [item["订单编号"] for item in orders]
         default_id = st.session_state.get("active_order_id", ids[0])
-        selected = st.selectbox("选择订单", ids, index=ids.index(default_id) if default_id in ids else 0)
+        labels = {o["订单编号"]: f"{o['品类']} · {o['订单编号']}" for o in orders}
+        selected = st.selectbox("选择配送子单", ids, index=ids.index(default_id) if default_id in ids else 0, format_func=lambda oid: labels[oid])
         # 优先读取共享记录，保证工作人员发车后的新状态会显示给客户。
         order = customer_order(selected)
     else:
         st.info("当前浏览器还没有提交过订单，可切换到“使用订单号查询”。")
 with lookup_tab:
     q1, q2 = st.columns([1.4, .6])
-    query_id = q1.text_input("订单编号", placeholder="例如：YL20260918123000ABCD").strip().upper()
+    query_id = q1.text_input("订单编号", placeholder="总单号 YG… 或配送子单号 YL…").strip().upper()
     phone_tail = q2.text_input("联系电话后四位", max_chars=4, placeholder="用于核验").strip()
     if st.button("查询订单", type="primary", use_container_width=True):
         candidate = verify_customer_order(query_id, phone_tail) if query_id else None
         if candidate:
             order = candidate
-            st.session_state["active_order_id"] = query_id
-            st.session_state["lookup_order_id"] = query_id
+            st.session_state["active_order_id"] = candidate["订单编号"]
+            st.session_state["lookup_order_id"] = candidate["订单编号"]
+            st.rerun()
         else:
             order = None
             st.error("未找到匹配订单，请检查订单编号和联系电话后四位。")
@@ -42,6 +47,8 @@ if not order:
     st.stop()
 
 st.session_state["active_order_id"] = order["订单编号"]
+if order.get("总单编号"):
+    st.caption(f"总单编号：{order['总单编号']} · 每个品类独立配送与签收")
 if st.button("刷新最新状态", use_container_width=True):
     st.rerun()
 index = int(order.get("状态序号", 0))

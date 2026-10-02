@@ -1,6 +1,8 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
+RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+
 import copy
 import hashlib
 from io import BytesIO
@@ -65,6 +67,15 @@ def validate_result(plan, orders):
     route_orders = [oid for r in routes for oid in r["订单编号列表"]]
     if len(route_orders) != len(expected) or set(route_orders) != expected:
         raise ValueError("线路存在漏单或重复订单。")
+    products = {o["订单编号"]: o["品类"] for o in orders}
+    vehicle_products = {}
+    for route in routes:
+        kinds = {products[oid] for oid in route["订单编号列表"]}
+        vehicle_products.setdefault(route["车辆编号"], set()).update(kinds)
+        if len(kinds) != 1 or not kinds <= {"鲜面条", "姜蒜"}:
+            raise ValueError("鲜面条与姜蒜不能同车混装，请重新计算分品类线路。")
+    if any(len(kinds) > 1 for kinds in vehicle_products.values()):
+        raise ValueError("同一车辆不能承担本批次两种品类，请分别安排车辆。")
     for a in assignments:
         route = next((r for r in routes if r["线路编号"] == a["线路编号"]), None)
         if route is None or a["车辆编号"] != route["车辆编号"] or route["订单编号列表"][a["配送顺序"]-1] != a["订单编号"]:
@@ -116,6 +127,9 @@ def advance_batch(day, target, now=None):
         if not row:
             raise ValueError("请先统一确认本批次。")
         batch = json.loads(row[0])
+        if target == "配送途中":
+            records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
+            validate_result(batch, [o for o in records if str(o.get("期望送达日期")) == str(day)])
         for assigned in batch["订单结果"]:
             row = conn.execute("SELECT payload FROM orders WHERE order_id=?", (assigned["订单编号"],)).fetchone()
             if row is None:

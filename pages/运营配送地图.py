@@ -1,9 +1,13 @@
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
+
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
 from 功能组件_页面共用代码.batch_dispatch import get_batch, day_orders
 from 功能组件_页面共用代码.order_state import init_orders
+from 功能组件_页面共用代码.live_operations import select_delivery_day, PRODUCT_COLORS
 from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
 
@@ -11,19 +15,16 @@ inject_css()
 render_sidebar()
 require_staff_access()
 page_title("运营配送地图", "按配送日查看已统一确认的全部线路，仅工作人员可见")
-days = sorted({str(o["期望送达日期"]) for o in init_orders(include_saved=True)}, reverse=True)
-if not days:
-    st.info("暂无客户订单。")
-    st.stop()
-day = st.selectbox("配送日期", days)
+day = select_delivery_day(st, historical=True)
 batch = get_batch(day)
 if not batch:
-    st.info("该配送日尚未统一确认，请先到「订单与参数」计算并确认整批方案。")
+    st.info("该配送日尚未统一确认，请先到「统一调度」计算并确认整批方案。")
     st.stop()
 fmap, minor_layer = create_chengdu_map(zoom_start=10)
-colors = ["#1750df", "#e77620", "#178465", "#a349a4", "#9f3444", "#557422"]
-for i, route in enumerate(batch["线路"]):
-    color = colors[i % len(colors)]
+st.caption("蓝色：鲜面条 · 橙色：姜蒜。不同品类分别用车。")
+products = {o["订单编号"]: o["品类"] for o in day_orders(day)}
+for i, route in enumerate(sorted(batch["线路"], key=lambda r: (r.get("品类") or products.get(r["订单编号列表"][0])) == "姜蒜")):
+    color = PRODUCT_COLORS.get(route.get("品类") or products.get(route["订单编号列表"][0]), "#555555")
     folium.GeoJson(route["路线GeoJSON"], name=route["线路编号"],
                    style_function=lambda _, c=color: {"color": c, "weight": 4, "opacity": .9},
                    tooltip=f"{route['线路编号']} · {route['车辆编号']}").add_to(fmap)

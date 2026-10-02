@@ -1,3 +1,6 @@
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
+
 import streamlit as st
 from 功能组件_页面共用代码.calendar_runtime import ensure_current_calendar
 
@@ -22,7 +25,7 @@ with st.container(key="home_hero"):
         st.markdown("""
         <div class="home-hero-copy">
           <h1>每日八点截单，统一安排配送。</h1>
-          <p>北京时间每日 20:00 截止次日订单，20:00 起自动归入后天配送。凭订单编号查询您的配送线路。</p>
+          <p>北京时间每日 20:00 截止次日订单，截止后最早后天配送。可预约更晚日期，鲜面条与姜蒜一次提交、分车配送。</p>
         </div>
         """, unsafe_allow_html=True)
         action_a, action_b = st.columns(2)

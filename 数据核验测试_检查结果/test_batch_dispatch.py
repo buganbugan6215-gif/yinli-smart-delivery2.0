@@ -48,10 +48,13 @@ def test_deadline_and_peak_boundaries():
     assert travel_minutes(20, 530) == pytest.approx(25)
 
 
-def test_creation_ignores_client_date(isolated, monkeypatch):
+def test_creation_rejects_closed_client_date(isolated, monkeypatch):
     monkeypatch.setattr(state, "beijing_now", lambda: datetime(2026, 9, 23, 12, 1, tzinfo=timezone.utc))
-    order = state.create_order({"品类": "鲜面条", "配送重量_kg": 30, "经度": 104.26, "纬度": 30.85,
-                                "最早到达": "08:00", "最晚到达": "18:00", "期望送达日期": "2000-01-01"})
+    payload = {"品类": "鲜面条", "配送重量_kg": 30, "经度": 104.26, "纬度": 30.85,
+               "最早到达": "08:00", "最晚到达": "18:00", "期望送达日期": "2000-01-01"}
+    with pytest.raises(ValueError, match="已截止"):
+        state.create_order(payload)
+    order = state.create_order({**payload, "期望送达日期": "2026-09-25"})
     assert order["期望送达日期"] == "2026-09-25"
     assert order["期望送达"].startswith("2026-09-25")
 

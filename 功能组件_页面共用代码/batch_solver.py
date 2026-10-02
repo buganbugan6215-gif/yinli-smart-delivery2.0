@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+
 from functools import lru_cache
 import gzip
 import json
@@ -74,6 +76,8 @@ def travel_minutes(km, start, normal=60.0, peak=30.0):
 
 
 def route_schedule(sequence, orders, matrix, vehicle, departure, rates):
+    if len({orders[i-1]["品类"] for i in sequence}) > 1:
+        return None
     load = sum(float(orders[i-1]["配送重量_kg"]) for i in sequence)
     if load > vehicle["capacity"] + 1e-8:
         return None
@@ -96,14 +100,15 @@ def route_schedule(sequence, orders, matrix, vehicle, departure, rates):
     return {"km": km, "load": load, "arrivals": arrivals, "return_minute": clock}
 
 
-def assign_routes(orders, matrix, rates, departure=360):
+def assign_routes(orders, matrix, rates, departure=360, strategy="deadline"):
     vehicles = []
     for kind in ("小型冷藏车", "大型冷藏车"):
         for i in range(int(rates[kind + "数量"])):
             vehicles.append({"id": f"{kind}-{i+1:02d}", "capacity": rates[kind + "载重_kg"],
                              "range": rates[kind + "续航_km"], "fixed": rates[kind + "固定成本_元"],
                              "per_km": rates[kind + "单位运输成本_元每km"], "sequence": []})
-    for customer in sorted(range(1, len(orders)+1), key=lambda i: (orders[i-1]["期望窗结束_分钟"], -float(orders[i-1]["配送重量_kg"]))):
+    priority = (lambda i: (-float(orders[i-1]["配送重量_kg"]), orders[i-1]["期望窗结束_分钟"])) if strategy == "weight" else (lambda i: (orders[i-1]["期望窗结束_分钟"], -float(orders[i-1]["配送重量_kg"])))
+    for customer in sorted(range(1, len(orders)+1), key=priority):
         best = None
         for vi, vehicle in enumerate(vehicles):
             old = route_schedule(vehicle["sequence"], orders, matrix, vehicle, departure, rates)
@@ -131,6 +136,8 @@ def solve_batch(orders, rates, departure=360, progress=None):
     if len(days) != 1 or len(set(ids)) != len(ids):
         raise ValueError("订单日期混杂或订单编号重复。")
     for o in orders:
+        if o.get("品类") not in {"鲜面条", "姜蒜"}:
+            raise ValueError("订单必须按鲜面条、姜蒜拆分后调度。")
         if not math.isfinite(float(o["配送重量_kg"])) or float(o["配送重量_kg"]) <= 0:
             raise ValueError("订单重量必须大于零。")
     points = [DEPOT] + [[float(o["经度"]), float(o["纬度"])] for o in orders]
@@ -191,7 +198,7 @@ def solve_batch(orders, rates, departure=360, progress=None):
                                 "路线GeoJSON": own_route, "路网最短距离_km": cumulative})
             previous = i
         features.append({"type": "Feature", "properties": {"线路编号": route_id, "route_mode": "Dijkstra路网最短路径"}, "geometry": {"type": "LineString", "coordinates": leg(previous, 0)}})
-        routes.append({"线路编号": route_id, "车辆编号": vehicle["id"], "订单编号列表": [ids[i-1] for i in sequence],
+        routes.append({"线路编号": route_id, "车辆编号": vehicle["id"], "品类": orders[sequence[0]-1]["品类"], "订单编号列表": [ids[i-1] for i in sequence],
                        "总重量_kg": schedule["load"], "总里程_km": schedule["km"], "返回时间_分钟": schedule["return_minute"],
                        "路线GeoJSON": {"type": "FeatureCollection", "features": features}})
     if progress:

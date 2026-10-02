@@ -1,3 +1,6 @@
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
+
 import streamlit as st
 
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders, customer_update

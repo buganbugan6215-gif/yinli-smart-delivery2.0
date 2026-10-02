@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+
 import html
 from typing import Any
 
@@ -12,6 +14,8 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
+        [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stDecoration"], #MainMenu { display:none!important; }
+        [data-testid="stDownloadButton"] button p, button[kind="primary"] p { color:inherit!important; }
         :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#f5f7fb; --surface:#ffffff; --surface-blue:#eef4ff; --line:#dfe7f1; --muted:#718096; --brand:#1750df; --brand-dark:#103c9e; --accent:#ff8133; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
         .stApp { background:var(--paper); color:var(--ink); font-family:'Microsoft YaHei UI','Microsoft YaHei','Segoe UI',sans-serif; }
         [data-testid='stHeader'] { background:rgba(245,247,251,.94); }
@@ -234,18 +238,27 @@ def inject_css() -> None:
     )
 
 
+STAFF_PAGES = [
+    ("pages/订单与需求.py", "订单台账"),
+    ("pages/企业工作台.py", "统一调度"),
+    ("pages/运营配送地图.py", "配送地图"),
+    ("pages/成本与绩效.py", "运营分析"),
+    ("pages/车辆与计价.py", "车辆与计价"),
+]
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown("<div class='brand-mark'>YL</div>", unsafe_allow_html=True)
         st.markdown("<div class='brand-name'>银犁智慧配送</div>", unsafe_allow_html=True)
         st.caption("下单、追踪、地图与签收")
         st.divider()
-        st.markdown("<div class='nav-section-label'>客户服务</div>", unsafe_allow_html=True)
-        st.page_link("app.py", label="⌂  网站首页")
-        st.page_link("pages/客户下单.py", label="▤  客户下单")
-        st.page_link("pages/订单追踪.py", label="◎  订单追踪")
-        st.page_link("pages/配送网络地图.py", label="◇  我的配送地图")
-        st.page_link("pages/电子签收.py", label="✦  确认签收")
+        with st.expander("客户服务", expanded=not st.session_state.get("staff_authenticated", False)):
+            st.page_link("app.py", label="网站首页")
+            st.page_link("pages/客户下单.py", label="客户下单")
+            st.page_link("pages/订单追踪.py", label="订单追踪")
+            st.page_link("pages/配送网络地图.py", label="我的配送地图")
+            st.page_link("pages/电子签收.py", label="确认签收")
         st.divider()
         st.markdown("<div class='nav-section-label'>工作人员</div>", unsafe_allow_html=True)
         if not st.session_state.get("staff_authenticated", False):
@@ -261,13 +274,9 @@ def render_sidebar() -> None:
                     st.error("密码不正确")
             return
         st.caption("已获得工作人员权限")
-        st.page_link("pages/企业工作台.py", label="▣  订单与参数")
-        st.page_link("pages/方案驾驶舱.py", label="▥  配送总览")
-        st.page_link("pages/订单与需求.py", label="▦  订单情况")
-        st.page_link("pages/运营配送地图.py", label="◇  配送网络地图")
-        st.page_link("pages/车辆路径优化.py", label="▱  车辆路径优化")
-        st.page_link("pages/成本与绩效.py", label="◒  成本与绩效")
-        st.page_link("pages/方案对比.py", label="⇄  方案对比")
+        for path, label in STAFF_PAGES:
+            st.page_link(path, label=label)
+
 
 
 def require_staff_access() -> None:

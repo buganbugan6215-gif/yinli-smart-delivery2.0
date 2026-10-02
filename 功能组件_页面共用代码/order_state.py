@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+RELEASE_VERSION = "2026-10-03-scheduled-orders-v3"
+
+from datetime import date, datetime
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -262,12 +265,17 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
     return sorted(records.values(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
 
 
-def create_order(payload: dict[str, Any]) -> dict[str, Any]:
-    init_orders()
-    own_orders = st.session_state["customer_orders"]
-    now = beijing_now()
+def _build_order(payload: dict[str, Any], now: datetime) -> dict[str, Any]:
     payload = dict(payload)
-    day = delivery_day(now).isoformat()
+    earliest_day = delivery_day(now)
+    requested = payload.get("期望送达日期")
+    try:
+        selected_day = date.fromisoformat(str(requested)) if requested else earliest_day
+    except ValueError as exc:
+        raise ValueError("请选择有效的配送日期。") from exc
+    if selected_day < earliest_day:
+        raise ValueError(f"所选配送日已截止，当前最早可配送日期为 {earliest_day}，请选择该日或更晚日期。")
+    day = selected_day.isoformat()
     payload["期望送达日期"] = day
     payload["期望送达"] = f"{day} {payload.get('最早到达', '00:00')}"
     payload["最晚送达"] = f"{day} {payload.get('最晚到达', '00:00')}"
@@ -275,11 +283,17 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
     latitude = float(payload["纬度"]) if payload.get("纬度") not in (None, "") else None
     quote = estimate_delivery_fee(str(payload.get("品类", "")), float(payload.get("配送重量_kg", 0)), longitude, latitude)
     product = str(payload.get("品类", ""))
+    if product not in {"鲜面条", "姜蒜"}:
+        raise ValueError("每个配送子单只能包含鲜面条或姜蒜一种品类。")
     earliest = str(payload.get("最早到达", "00:00"))
     latest = str(payload.get("最晚到达", "00:00"))
     noodle = float(payload.get("鲜面需求量_kg", payload.get("配送重量_kg", 0)) if product == "鲜面条" else 0)
     ginger = float(payload.get("生姜需求量_kg", 0))
     garlic = float(payload.get("大蒜需求量_kg", 0))
+    if product == "鲜面条" and (ginger > 0 or garlic > 0):
+        raise ValueError("鲜面条与姜蒜必须拆成不同配送子单。")
+    if product == "姜蒜" and float(payload.get("鲜面需求量_kg", 0)) > 0:
+        raise ValueError("鲜面条与姜蒜必须拆成不同配送子单。")
     enriched = {
         "期望窗开始_分钟": minutes_from_midnight(earliest),
         "期望窗结束_分钟": minutes_from_midnight(latest),
@@ -289,27 +303,57 @@ def create_order(payload: dict[str, Any]) -> dict[str, Any]:
     }
     if longitude is None or latitude is None or not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
         raise ValueError("请提供有效的收货坐标。")
-    if float(payload.get("配送重量_kg", 0)) <= 0 or minutes_from_midnight(latest) <= minutes_from_midnight(earliest):
+    if not math.isfinite(float(payload.get("配送重量_kg", 0))) or float(payload.get("配送重量_kg", 0)) <= 0 or minutes_from_midnight(latest) <= minutes_from_midnight(earliest):
         raise ValueError("重量必须大于零，最晚送达时间须晚于最早到达时间。")
     order = {**payload, **enriched, "订单编号": f"YL{now:%Y%m%d%H%M%S}{uuid4().hex[:12].upper()}", "提交时间": now.isoformat(timespec="seconds"), "状态": STATUS_FLOW[1], "状态序号": 1, "数据模式": "等待整日统一调度", "报价明细": quote, "预估费用_元": quote["预估费用_元"], "路线GeoJSON": None}
-    try:
-        order["保存路径"] = save_order_to_excel(order)
-        order["保存状态"] = "已保存到本机演示订单表"
-    except Exception as exc:
-        order["保存状态"] = f"本机保存失败：{exc}"
-    save_order_record(order)
-    own_orders.insert(0, order)
     return order
+
+
+def _commit_orders(orders):
+    # 两种品类在同一事务中写入，任何子单失败则整次提交回滚。
+    with _db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        for order in orders:
+            order["保存状态"] = "已保存到订单数据库"
+            connection.execute("INSERT INTO orders VALUES (?, ?, ?)",
+                               (order["订单编号"], order["提交时间"], json.dumps(order, ensure_ascii=False)))
+    st.session_state.setdefault("customer_orders", [])[:0] = orders
+    return orders
+
+
+def create_order(payload: dict[str, Any]) -> dict[str, Any]:
+    return _commit_orders([_build_order(payload, beijing_now())])[0]
+
+
+def create_order_group(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """一次提交、同一收单时刻、按品类生成独立配送子单。"""
+    amounts = [float(payload.get(key, 0)) for key in ("鲜面需求量_kg", "生姜需求量_kg", "大蒜需求量_kg")]
+    if any(not math.isfinite(q) or q < 0 for q in amounts) or sum(amounts) <= 0:
+        raise ValueError("请填写至少一种货物的正数重量，重量不能为负数。")
+    now = beijing_now()
+    parent_id = f"YG{now:%Y%m%d%H%M%S}{uuid4().hex[:12].upper()}"
+    noodle, ginger, garlic = amounts
+    orders = []
+    for product, weight, n, g, a in (("鲜面条", noodle, noodle, 0, 0), ("姜蒜", ginger + garlic, 0, ginger, garlic)):
+        if weight:
+            orders.append(_build_order({**payload, "总单编号": parent_id, "品类": product,
+                "配送重量_kg": weight, "鲜面需求量_kg": n, "生姜需求量_kg": g, "大蒜需求量_kg": a}, now))
+    return _commit_orders(orders)
 
 
 def verify_customer_order(order_id: str, phone_tail: str) -> dict[str, Any] | None:
     """客户需要订单编号和联系电话后四位；核验只授予该订单的会话权限。"""
     with _db_connection() as connection:
-        row = connection.execute("SELECT payload FROM orders WHERE order_id=?", (order_id.strip().upper(),)).fetchone()
-    item = json.loads(row[0]) if row else None
+        records = [json.loads(row[0]) for row in connection.execute("SELECT payload FROM orders").fetchall()]
+    key = order_id.strip().upper()
+    matches = [o for o in records if o["订单编号"] == key or o.get("总单编号") == key]
+    item = matches[0] if matches else None
     if item and len(phone_tail) == 4 and phone_tail.isdigit() and str(item.get("联系电话", "")).endswith(phone_tail):
         allowed = set(st.session_state.get("verified_order_ids", []))
-        allowed.add(item["订单编号"])
+        # 总单或其子单通过核验后，仅放行同总单、同完整电话的兄弟子单。
+        related = [o for o in records if item.get("总单编号") and o.get("总单编号") == item["总单编号"]
+                   and o.get("联系电话") == item.get("联系电话")]
+        allowed.update(o["订单编号"] for o in (related or [item]))
         st.session_state["verified_order_ids"] = sorted(allowed)
         return item
     return None

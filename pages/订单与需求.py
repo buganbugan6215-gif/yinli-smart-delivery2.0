@@ -1,59 +1,39 @@
-import streamlit as st
-import plotly.express as px
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
 
-from 功能组件_页面共用代码.data_loader import load_site_data
-from 功能组件_页面共用代码.ui import inject_css, page_title, plotly_config, render_sidebar, require_staff_access, section_label, source_note
+import pandas as pd
+import streamlit as st
+from 功能组件_页面共用代码.batch_dispatch import day_orders
+from 功能组件_页面共用代码.live_operations import select_delivery_day, order_summary
+from 功能组件_页面共用代码.ui import inject_css, render_sidebar, require_staff_access, page_title
 
 inject_css()
 render_sidebar()
 require_staff_access()
-st.info("此页为竞赛成果/独立试算视图。当前客户订单的整日调度，请进入「订单与参数」。")
-data = load_site_data()
-page_title("订单概览", "先看订单总量，再按品类和需求筛选")
+page_title("订单台账", "查询客户提交、配送子单与异常反馈；调度操作请进入统一调度")
+day = select_delivery_day(st, historical=True)
+query = st.text_input("搜索总单号、子单号或客户名称").strip()
+product = st.selectbox("品类", ["全部", "鲜面条", "姜蒜"])
 
-if data.customers.empty:
-    st.warning("暂无客户明细。请先运行 数据整理脚本_生成网站数据/prepare_data.py。")
-else:
-    frame = data.customers.copy()
-    categories = ["全部"] + sorted(frame["产品"].dropna().astype(str).unique().tolist()) if "产品" in frame else ["全部"]
-    category = st.selectbox("产品筛选", categories)
-    if category != "全部":
-        frame = frame[frame["产品"] == category]
-    if "需求量_kg" in frame:
-        low, high = int(frame["需求量_kg"].min()), int(frame["需求量_kg"].max())
-        demand = st.slider("需求量范围（kg）", low, max(high, low + 1), (low, high))
-        frame = frame[frame["需求量_kg"].between(*demand)]
+@st.fragment(run_every="30s")
+def render_orders():
+    orders = day_orders(day)
+    if not orders:
+        st.info("该配送日暂无实际订单。")
+        return
+    visible = [o for o in orders if (product == "全部" or o["品类"] == product) and
+               (not query or any(query.lower() in str(o.get(k, "")).lower() for k in ("订单编号", "总单编号", "客户名称")))]
+    summary = order_summary(visible)
+    st.caption(f"每 30 秒读取最新订单 · 当前筛选 {summary['客户提交次数']} 次客户提交 / {summary['配送子单']} 个配送子单 / {summary['货量_kg']:.1f} kg")
+    frame = pd.DataFrame(visible)
+    cols = ["总单编号", "订单编号", "客户名称", "品类", "配送重量_kg", "期望送达日期", "最早到达", "最晚到达", "状态", "线路编号", "车辆编号", "联系电话", "收货地址"]
+    st.dataframe(frame[[c for c in cols if c in frame]], hide_index=True, use_container_width=True)
+    st.download_button("导出筛选订单 CSV", frame.drop(columns=["路线GeoJSON"], errors="ignore").to_csv(index=False).encode("utf-8-sig"), f"{day}_订单台账.csv")
+    feedback = [o for o in visible if o.get("异常反馈")]
+    with st.expander(f"异常反馈 · {len(feedback)} 条"):
+        for o in feedback:
+            st.write({"订单编号": o["订单编号"], "客户名称": o.get("客户名称"), "反馈": o["异常反馈"]})
+        if not feedback:
+            st.caption("当前筛选没有异常反馈。")
 
-    cols = st.columns(4)
-    for col, (label, value) in zip(cols, [("当前客户", len(frame)), ("总需求量", f"{frame['需求量_kg'].sum():,.0f} kg" if "需求量_kg" in frame else "暂无"), ("平均每客户", f"{frame['需求量_kg'].mean():,.1f} kg" if "需求量_kg" in frame else "暂无"), ("配送品类", frame['产品'].nunique() if '产品' in frame else "暂无")]):
-        col.metric(label, value)
-
-    section_label("订单结构")
-    left, right = st.columns(2, gap="large")
-    with left:
-        if "产品" in frame and "需求量_kg" in frame:
-            product = frame.groupby("产品", as_index=False)["需求量_kg"].sum()
-            fig = px.pie(product, names="产品", values="需求量_kg", hole=.58, color="产品", color_discrete_map={"鲜面条": "#1750df", "姜蒜": "#ff8133"})
-            fig.update_traces(textposition="outside", texttemplate="%{label}<br>%{value:,.0f} kg", hovertemplate="%{label}: %{value:,.1f} kg<extra></extra>")
-            fig.update_layout(height=330, margin=dict(l=10,r=10,t=16,b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#1d2a3a"), showlegend=False)
-            st.plotly_chart(fig, use_container_width=True, config=plotly_config())
-    with right:
-        if "时间窗" in frame.columns:
-            frame["送达时段"] = frame["时间窗"].astype(str).str[:3].map(lambda value: f"{int(value) // 60:02d}:{int(value) % 60:02d}" if value.isdigit() else value)
-            order = sorted(frame["送达时段"].dropna().unique().tolist())
-            fig = px.histogram(frame, x="送达时段", color="产品" if "产品" in frame else None, barmode="group", category_orders={"送达时段": order}, color_discrete_map={"鲜面条": "#1750df", "姜蒜": "#ff8133"})
-            fig.update_layout(height=330, margin=dict(l=10,r=10,t=16,b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#1d2a3a"), legend_title_text="")
-            fig.update_xaxes(title="最早送达时间")
-            st.plotly_chart(fig, use_container_width=True, config=plotly_config())
-        else:
-            st.info("时间窗分布暂无可验证数据。")
-
-    section_label("客户清单")
-    st.caption("以下只显示业务确认需要的字段，完整数据仍保留在网站数据文件中。")
-    view_columns = ["客户编号", "产品", "经度", "纬度", "需求量_kg", "时间窗", "服务时间_分"]
-    view = frame[[column for column in view_columns if column in frame.columns]].copy()
-    view = view.rename(columns={"需求量_kg": "需求量（kg）", "时间窗": "期望送达时间", "服务时间_分": "服务时间（分钟）"})
-    with st.expander("查看客户清单", expanded=False):
-        st.dataframe(view, use_container_width=True, hide_index=True)
-
-source_note(data.manifest)
+render_orders()

@@ -42,6 +42,7 @@ def test_staff_and_customer_pages_share_cutoff(tmp_path, monkeypatch, instant, c
     staff = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     staff.session_state["staff_authenticated"] = True
     staff.switch_page("pages/企业工作台.py").run()
+    staff.selectbox[0].select("2026-09-24").run()
     assert not staff.exception
     assert any("2026-09-23 20:00" in c.value for c in staff.caption)
     assert not any("23:59" in c.value for c in staff.caption)
@@ -52,4 +53,4 @@ def test_staff_and_customer_pages_share_cutoff(tmp_path, monkeypatch, instant, c
     customer.switch_page("pages/客户下单.py").run()
     assert not customer.exception
     assert any(f"本次下单配送日：{day}" in i.value for i in customer.info)
-    assert any("20:00" in c.value and "本批次截止时间" in c.value for c in customer.caption)
+    assert any("20:00" in c.value and "所选批次截止时间" in c.value for c in customer.caption)

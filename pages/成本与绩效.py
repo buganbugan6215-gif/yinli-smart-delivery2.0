@@ -1,47 +1,66 @@
-import streamlit as st
-import plotly.express as px
+from 功能组件_页面共用代码.release_runtime import ensure_current_release
+ensure_current_release()
 
-from 功能组件_页面共用代码.data_loader import load_site_data
-from 功能组件_页面共用代码.ui import fmt_money, inject_css, page_title, plotly_config, render_sidebar, require_staff_access, section_label, source_note
+from datetime import time
+import pandas as pd
+import streamlit as st
+from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint
+from 功能组件_页面共用代码.batch_solver import solve_batch
+from 功能组件_页面共用代码.order_state import pricing_settings
+from 功能组件_页面共用代码.live_operations import select_delivery_day, order_summary, plan_metrics, compare_strategies
+from 功能组件_页面共用代码.ui import inject_css, render_sidebar, require_staff_access, page_title
 
 inject_css()
 render_sidebar()
 require_staff_access()
-st.info("此页为竞赛成果/独立试算视图。当前客户订单的整日调度，请进入「订单与参数」。")
-data = load_site_data()
-page_title("费用与服务", "看清这次配送的费用构成和服务表现")
+page_title("运营分析", "按配送日分析实际订单、计划成本和同批次方案对比")
+day = select_delivery_day(st, historical=True)
+st.caption("默认查看今日、明日；预约到更晚日期的订单可选择“其他日期”查看和试算。")
+overview, comparison = st.tabs(["订单与计划成本", "方案对比"])
 
-scenario = st.selectbox("查看方案", ["鲜面条配送", "姜蒜配送", "车辆复用"])
-key = {"鲜面条配送": "noodle", "姜蒜配送": "ginger", "车辆复用": "reuse"}[scenario]
-summary = data.summary.get(key, {})
+with overview:
+    @st.fragment(run_every="30s")
+    def render_summary():
+        orders = day_orders(day)
+        if not orders:
+            st.info("该配送日暂无实际订单，不展示竞赛样例数据。")
+            return
+        summary = order_summary(orders)
+        cols = st.columns(4)
+        for col, (label, value) in zip(cols, summary.items()):
+            col.metric(label, value)
+        frame = pd.DataFrame(orders)
+        st.dataframe(frame.groupby(["品类", "状态"], as_index=False).agg(子单数=("订单编号", "count"), 货量_kg=("配送重量_kg", "sum")), hide_index=True, use_container_width=True)
+        plan = get_batch(day)
+        if not plan:
+            st.info("尚未确认调度方案，暂无计划里程与车辆成本。可在方案对比中试算。")
+            return
+        rows = plan_metrics(plan)
+        st.markdown("### 已确认方案的计划成本")
+        st.caption("按确认时车辆参数计算固定成本与里程成本；不代表实际结算，不计未建模的制冷、货损及罚款。")
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.write(f"计划总里程 {sum(r['里程_km'] for r in rows):.2f} km · 固定及里程成本 ¥ {sum(r['固定及里程成本_元'] for r in rows):.2f}")
+    render_summary()
 
-if not summary:
-    st.warning("暂无可验证数据。")
-else:
-    cost = summary.get("cost_breakdown", {}) or {k: summary.get(k) for k in ["fixed_cost", "transport_cost", "cooling_cost", "time_penalty_cost", "loss_cost"] if summary.get(k) is not None}
-    section_label("费用构成")
-    if cost:
-        cost_labels = {"fixed_cost": "车辆固定费用", "transport_cost": "运输费用", "cooling_cost": "冷藏费用", "time_penalty_cost": "时间影响费用", "loss_cost": "货损费用", "variable_cost": "运行费用"}
-        frame = {"费用项目": [cost_labels.get(k, k) for k in cost], "费用（元）": list(cost.values())}
-        fig = px.bar(frame, y="费用项目", x="费用（元）", orientation="h", text_auto=".2f", color_discrete_sequence=["#ff8133"])
-        fig.update_layout(height=280, margin=dict(l=0,r=0,t=12,b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#1d2a3a"), xaxis_title="金额（元）", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True, config=plotly_config())
-
-    cols = st.columns(4)
-    for col, (label, value) in zip(cols, [("预计总费用", fmt_money(summary.get("total_cost"))), ("每公里费用", fmt_money(summary.get("total_cost", 0) / summary.get("total_distance_km", 1)) if summary.get("total_distance_km") else "暂无"), ("按时送达客户", summary.get("ontime_customers", "暂无")), ("平均装载率", f"{summary.get('average_load_rate', 0) * 100:.1f}%" if summary.get("average_load_rate") is not None else "暂无")]):
-        col.metric(label, value)
-
-section_label("车辆成本参考")
-if data.sensitivity.empty:
-    st.info("暂无灵敏度分析数据。")
-else:
-    sens = data.sensitivity.copy()
-    x = "满载能耗增幅" if "满载能耗增幅" in sens else sens.columns[0]
-    y = "修正后总成本上界_元" if "修正后总成本上界_元" in sens else sens.columns[-1]
-    fig = px.line(sens, x=x, y=y, markers=True, color_discrete_sequence=["#1750df"])
-    fig.update_layout(height=320, margin=dict(l=0,r=0,t=12,b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#1d2a3a"))
-    st.plotly_chart(fig, use_container_width=True, config=plotly_config())
-    with st.expander("查看详细参考数据", expanded=False):
-        st.dataframe(sens, use_container_width=True, hide_index=True)
-
-source_note(data.manifest)
+with comparison:
+    st.caption("同一批实际订单、同一距离矩阵、同一车辆和不混装约束，比较两种插入顺序。试算不会确认或修改订单；收单期间结果会随新订单失效。")
+    departure = st.time_input("试算发车时间", value=time(6, 0))
+    minutes = departure.hour * 60 + departure.minute
+    if st.button("计算本配送日方案对比", type="primary"):
+        orders = day_orders(day)
+        try:
+            with st.spinner("正在计算实际订单的道路矩阵和两种可行方案…"):
+                plan = solve_batch(orders, pricing_settings(), minutes)
+                st.session_state[f"comparison_{day}"] = compare_strategies(orders, plan)
+        except (ValueError, OSError) as exc:
+            st.error(str(exc))
+    @st.fragment(run_every="30s")
+    def render_comparison():
+        result = st.session_state.get(f"comparison_{day}")
+        if result:
+            if result["输入指纹"] != input_fingerprint(day_orders(day)) or result["参数"] != pricing_settings() or result["发车分钟"] != minutes:
+                st.warning("订单、参数或发车时间已变化，原对比失效，请重新计算。")
+            else:
+                st.dataframe(pd.DataFrame(result["结果"]), hide_index=True, use_container_width=True)
+                st.caption("两种方法均为启发式；可能得到相同结果，不保证全局最优。")
+    render_comparison()
