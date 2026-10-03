@@ -160,3 +160,10 @@ input:focus,input:focus-visible,textarea:focus,textarea:focus-visible {
   .st-key-home_hero .home-hero-copy h1 { font-size:2rem!important; }
   .st-key-home_hero .customer-journey { padding:16px 0 0; border-left:0; border-top:1px solid rgba(192,211,244,.25); }
 }
+/* GSAP 接管位移后，CSS 仅负责颜色与阴影，避免双重缓动。 */
+html[data-yl-motion] .home-feature,
+html[data-yl-motion] .home-flow-item,
+html[data-yl-motion] [class*='st-key-entry_'],
+html[data-yl-motion] .st-key-order_receiver,
+html[data-yl-motion] .st-key-order_schedule,
+html[data-yl-motion] .st-key-order_cargo { transition-property:background-color,border-color,box-shadow!important; }

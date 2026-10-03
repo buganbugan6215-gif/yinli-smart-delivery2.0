@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-hero-focus-v12"
+RELEASE_VERSION = "2026-10-03-audit-v13"
 
 import html
 import inspect

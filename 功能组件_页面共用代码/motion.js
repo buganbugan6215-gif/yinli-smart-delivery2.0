@@ -1,19 +1,21 @@
 (() => {
   'use strict';
-  const version = '2026-10-03-balanced-motion-v11';
+  const version = '2026-10-03-audit-v13';
   if (!window.gsap || window.__ylMotion?.version === version) return;
   window.__ylMotion?.dispose();
   const g = window.gsap, root = document.documentElement;
-  const seen = new WeakSet(), events = [], pending = new Set();
+  const seen = new WeakSet(), events = [], pending = new Set(), pressed = new Set();
   let frame = 0, observer, media, reduced = false;
   const cards = '.home-feature,.home-flow-item,[class*="st-key-entry_"],.metric-card,.route-board,.note-panel,[class*="st-key-order_"]';
   const entrance = `${cards},.home-hero-copy,.home-journey,h1,.motion-focus,.motion-reveal,.home-reveal,.page-subtitle,[data-testid="stHeading"],[data-testid="stMetric"],[data-testid="stAlert"],.delivery-track-fill`;
   const controls = '[data-testid="stButton"] button,[data-testid="stPageLink-NavLink"], [data-testid="stDownloadButton"] button';
   const fine = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
   const watched = new WeakSet();
-  const view = new IntersectionObserver(entries => entries.forEach(entry => {
-    if (entry.isIntersecting) { view.unobserve(entry.target); animate([entry.target]); }
-  }), {threshold: 0.06});
+  const view = new IntersectionObserver(entries => {
+    const visible = entries.filter(entry => entry.isIntersecting).map(entry => entry.target);
+    visible.forEach(el => view.unobserve(el));
+    animate(visible);
+  }, {threshold: 0.06});
   function animate(nodes) {
     const fresh = nodes.filter(el => el.isConnected && !seen.has(el) && !el.closest('[data-testid="stHtml"],iframe'));
     fresh.forEach(el => seen.add(el));
@@ -51,6 +53,7 @@
     reduced = context.conditions.reduce;
     root.dataset.ylMotionReduced = String(reduced);
     if (reduced) {
+      pressed.clear();
       g.killTweensOf(entrance + ',' + controls + ',.feature-line');
       g.set(document.querySelectorAll(entrance + ',' + controls + ',.feature-line'), {clearProps: 'transform,opacity'});
     }
@@ -72,9 +75,16 @@
   });
   on('pointerdown', event => {
     const el = target(event);
-    if (el?.matches(controls) && !reduced) g.to(el, {scale: 0.985, y: 0, duration: 0.1, overwrite: 'auto'});
+    if (el?.matches(controls) && !reduced) {
+      pressed.add(el);
+      g.to(el, {scale: 0.985, y: 0, duration: 0.1, overwrite: 'auto'});
+    }
   });
-  const release = () => { if (!reduced) g.to(document.querySelectorAll(controls), {scale: 1, duration: 0.16, overwrite: 'auto', clearProps: 'transform'}); };
+  const release = () => {
+    const active = [...pressed].filter(el => el.isConnected);
+    pressed.clear();
+    if (!reduced && active.length) g.to(active, {scale: 1, duration: 0.16, overwrite: 'auto', clearProps: 'transform'});
+  };
   on('pointerup', release); on('pointercancel', release);
   on('focusin', event => {
     const card = event.target.closest(cards);
@@ -84,7 +94,9 @@
     record.addedNodes.forEach(scan);
     record.removedNodes.forEach(node => {
       if (node.nodeType !== 1) return;
-      [node, ...node.querySelectorAll(entrance)].forEach(el => {view.unobserve(el); pending.delete(el); g.killTweensOf(el);});
+      [node, ...node.querySelectorAll(entrance + ',.feature-line')].forEach(el => {
+        view.unobserve(el); watched.delete(el); pending.delete(el); pressed.delete(el); g.killTweensOf(el);
+      });
     });
   }));
   observer.observe(document.body, {childList: true, subtree: true});
@@ -92,6 +104,7 @@
   window.__ylMotion = {version, dispose() {
     observer.disconnect(); view.disconnect(); cancelAnimationFrame(frame); media.revert();
     events.forEach(([type, handler]) => document.removeEventListener(type, handler));
+    pressed.clear(); pending.clear();
     g.killTweensOf(entrance + ',' + controls + ',.feature-line');
     g.set(document.querySelectorAll(entrance + ',' + controls + ',.feature-line'), {clearProps: 'transform,opacity'});
     delete root.dataset.ylMotion;
