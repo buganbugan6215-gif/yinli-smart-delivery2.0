@@ -1,6 +1,8 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
+RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
+
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
@@ -69,14 +71,23 @@ def get_tracking_snapshot(
     order: dict[str, Any],
     *,
     now: datetime | None = None,
-    speed_kmh: float = 30.0,
+    speed_kmh: float | None = None,
+    peak_speed_kmh: float | None = None,
     demo_factor: float = 60.0,
 ) -> dict[str, Any] | None:
     """返回配送快照；仅接受正式 Dijkstra 路线，不伪造无路线订单的位置。"""
     if not order or not is_dijkstra_route(order):
         return None
+    from 功能组件_页面共用代码.order_state import pricing_settings
+    from 功能组件_页面共用代码.batch_solver import travel_minutes
+    if speed_kmh is None:
+        rates = order.get("行驶参数") or pricing_settings()
+        speed_kmh = rates["平均速度_kmh"]
+        peak_speed_kmh = rates["早高峰速度_kmh"] if peak_speed_kmh is None else peak_speed_kmh
+    elif peak_speed_kmh is None:
+        peak_speed_kmh = speed_kmh
     coordinates = route_coordinates(order.get("路线GeoJSON"))
-    if len(coordinates) < 2 or speed_kmh <= 0 or demo_factor <= 0:
+    if len(coordinates) < 2 or min(speed_kmh, peak_speed_kmh) <= 0 or demo_factor <= 0:
         return None
     try:
         departed_at = datetime.fromisoformat(str(order["发车时间"]))
@@ -91,17 +102,29 @@ def get_tracking_snapshot(
         return None
 
     status = str(order.get("状态", ""))
+    start_minute = departed_at.hour * 60 + departed_at.minute + departed_at.second / 60
+    elapsed = max(0.0, (current_time - departed_at).total_seconds()) / 60 * demo_factor
     if status in {"已送达", "签收完成"}:
         progress = 1.0
     elif status != "配送途中":
         return None
     else:
-        simulated_hours = max(0.0, (current_time - departed_at).total_seconds()) / 3600 * demo_factor
-        progress = min(1.0, simulated_hours * speed_kmh / total_km)
+        duration = travel_minutes(total_km, start_minute, speed_kmh, peak_speed_kmh)
+        if elapsed >= duration:
+            progress = 1.0
+        else:
+            low, high = 0.0, total_km
+            for _ in range(35):
+                mid = (low + high) / 2
+                if travel_minutes(mid, start_minute, speed_kmh, peak_speed_kmh) <= elapsed:
+                    low = mid
+                else:
+                    high = mid
+            progress = low / total_km
 
     travelled_km = total_km * progress
     remaining_km = max(0.0, total_km - travelled_km)
-    remaining_minutes = remaining_km / speed_kmh * 60
+    remaining_minutes = travel_minutes(remaining_km, start_minute + elapsed, speed_kmh, peak_speed_kmh)
     eta = current_time + timedelta(minutes=remaining_minutes / demo_factor)
     uncertainty_minutes = max(3.0, min(15.0, 2.0 + remaining_minutes * 0.25))
     longitude, latitude = _position_at_distance(coordinates, cumulative, travelled_km)

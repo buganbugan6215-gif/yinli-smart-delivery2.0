@@ -30,8 +30,13 @@ def test_staff_compute_confirm_and_customer_lookup(tmp_path, monkeypatch):
     staff.selectbox[0].select("其他日期").run()
     staff.date_input[0].set_value(date(2020, 1, 2)).run()
     assert not staff.exception
-    button(staff, "一次计算全部订单的矩阵与线路").click().run()
+    button(staff, "立即计算路径").click().run()
     assert not staff.exception
+    assert next(m.value for m in staff.metric if m.label == "待计算订单") == "0"
+    assert next(m.value for m in staff.metric if m.label == "已计算订单") == "2"
+    assert button(staff, "立即计算路径").disabled
+    staff.run()  # 刷新后计算结果和列表分类保持。
+    assert next(m.value for m in staff.metric if m.label == "待计算订单") == "0"
     button(staff, "统一确认全部线路并开始备货").click().run()
     assert not staff.exception
     assert all(o["线路编号"] for o in state.load_order_records())

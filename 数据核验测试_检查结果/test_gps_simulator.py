@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import pytest
 
 from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates
 
@@ -53,3 +54,12 @@ def test_arrival_risk_uses_service_completion_time():
     snapshot = {"eta_latest": departed.replace(hour=12, minute=25)}
     level, _ = arrival_risk(order, snapshot)
     assert level == "error"
+
+
+@pytest.mark.parametrize("hour,minute,distance", [(6,59,1.5), (7,0,1.0), (8,59,1.5), (9,0,2.0)])
+def test_tracking_uses_split_peak_speed(hour, minute, distance):
+    order, departed = _order()
+    departed = departed.replace(hour=hour, minute=minute)
+    order["发车时间"] = departed.isoformat()
+    snapshot = get_tracking_snapshot(order, now=departed+timedelta(minutes=2), speed_kmh=60, peak_speed_kmh=30, demo_factor=1)
+    assert snapshot["travelled_km"] == pytest.approx(distance, abs=1e-6)

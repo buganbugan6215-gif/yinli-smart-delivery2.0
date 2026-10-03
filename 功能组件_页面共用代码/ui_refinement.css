@@ -167,3 +167,8 @@ html[data-yl-motion] [class*='st-key-entry_'],
 html[data-yl-motion] .st-key-order_receiver,
 html[data-yl-motion] .st-key-order_schedule,
 html[data-yl-motion] .st-key-order_cargo { transition-property:background-color,border-color,box-shadow!important; }
+/* 立即计算沿用主色与 GSAP 按压反馈，计算进度提供明确状态。 */
+.st-key-dispatch_compute { margin:8px 0 16px; }
+.st-key-dispatch_compute button { min-height:52px; background:var(--brand)!important; border-color:var(--brand)!important; color:#f0f5ff!important; }
+.st-key-dispatch_compute button:hover:not(:disabled) { background:var(--brand-dark)!important; }
+.st-key-dispatch_compute button:disabled { background:#d6e0f1!important; border-color:#c7d4e8!important; color:#60718b!important; }

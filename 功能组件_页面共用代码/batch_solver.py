@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-audit-v13"
+RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
 
 from functools import lru_cache
 import gzip

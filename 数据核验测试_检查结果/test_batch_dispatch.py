@@ -48,6 +48,17 @@ def test_deadline_and_peak_boundaries():
     assert travel_minutes(20, 530) == pytest.approx(25)
 
 
+def test_speed_policy_migrates_old_saved_values_without_changing_prices(isolated):
+    state.SETTINGS_PATH.write_text(json.dumps({"平均速度_kmh": 35, "早高峰速度_kmh": 25, "起步价_元": 19}), encoding="utf-8")
+    rates = state.pricing_settings()
+    assert (rates["平均速度_kmh"], rates["早高峰速度_kmh"], rates["起步价_元"]) == (60, 30, 19)
+    state.save_pricing_settings(rates)
+    assert state.pricing_settings() == rates
+    assert travel_minutes(30, 360, rates["平均速度_kmh"], rates["早高峰速度_kmh"]) == 30
+    assert travel_minutes(30, 420, rates["平均速度_kmh"], rates["早高峰速度_kmh"]) == 60
+    assert travel_minutes(30, 540, rates["平均速度_kmh"], rates["早高峰速度_kmh"]) == 30
+
+
 def test_creation_rejects_closed_client_date(isolated, monkeypatch):
     monkeypatch.setattr(state, "beijing_now", lambda: datetime(2026, 9, 23, 12, 1, tzinfo=timezone.utc))
     payload = {"品类": "鲜面条", "配送重量_kg": 30, "经度": 104.26, "纬度": 30.85,
@@ -135,6 +146,58 @@ def test_new_order_after_computation_rejects_stale_plan(isolated, real_plan):
     with pytest.raises(ValueError, match="变化"):
         batch.confirm_batch(real_plan, datetime(2026, 9, 24, 6))
     assert batch.get_batch("2026-09-24") is None
+
+
+def test_compute_before_cutoff_persists_without_publishing(isolated, real_plan):
+    for order in samples():
+        state.save_order_record(order)
+    early = datetime(2026, 9, 23, 10)
+    batch.save_draft(real_plan, early)
+    state.st.session_state.clear()
+    assert batch.get_draft("2026-09-24")["输入指纹"] == real_plan["输入指纹"]
+    pending, calculated = batch.calculation_groups("2026-09-24")
+    assert not pending and len(calculated) == 3
+    assert len(state.load_order_records()) == 3
+    assert {o["状态"] for o in state.load_order_records()} == {"方案待确认"}
+    assert batch.get_batch("2026-09-24") is None
+    with pytest.raises(ValueError, match="截止"):
+        batch.confirm_batch(batch.get_draft("2026-09-24"), early)
+
+
+def test_new_arrival_during_computation_stays_pending(isolated, real_plan):
+    for order in samples() + [dict(samples()[0], 订单编号="TEST-4")]:
+        state.save_order_record(order)
+    batch.save_draft(real_plan)
+    pending, calculated = batch.calculation_groups("2026-09-24")
+    assert [o["订单编号"] for o in pending] == ["TEST-4"]
+    assert len(calculated) == 3
+    with pytest.raises(ValueError, match="变化"):
+        batch.confirm_batch(batch.get_draft("2026-09-24"), datetime(2026, 9, 24, 6))
+
+
+def test_changed_order_returns_to_pending_and_failed_save_preserves_plan(isolated, real_plan):
+    for order in samples():
+        state.save_order_record(order)
+    batch.save_draft(real_plan)
+    changed = dict(samples()[0], 配送重量_kg=80)
+    state.save_order_record(changed)
+    pending, calculated = batch.calculation_groups("2026-09-24")
+    assert [o["订单编号"] for o in pending] == ["TEST-1"]
+    assert len(calculated) == 2
+    with pytest.raises(ValueError, match="变化"):
+        batch.save_draft(real_plan)
+    assert batch.get_draft("2026-09-24")["输入指纹"] == real_plan["输入指纹"]
+
+
+def test_confirm_moves_saved_draft_to_published_batch(isolated, real_plan):
+    for order in samples():
+        state.save_order_record(order)
+    batch.save_draft(real_plan)
+    batch.confirm_batch(batch.get_draft("2026-09-24"), datetime(2026, 9, 24, 6))
+    assert batch.get_draft("2026-09-24") is None
+    assert len(batch.calculation_groups("2026-09-24")[1]) == 3
+    with pytest.raises(ValueError, match="已统一确认"):
+        batch.save_draft(real_plan)
 
 
 def test_no_partial_dispatch_when_capacity_insufficient():

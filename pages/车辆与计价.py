@@ -19,6 +19,7 @@ with st.form("operations_parameters"):
             key = kind + suffix
             updated[key] = cols[i % 3].number_input(label, min_value=float(minimum), value=float(rates[key]), step=1.0 if suffix == "数量" else 0.1, key=key)
     st.subheader("行驶速度")
+    st.caption("默认规则：非早高峰 60 公里/小时；07:00（含）至 09:00（不含）为早高峰，速度 30 公里/小时。跨时段路程分段计算。")
     a, b = st.columns(2)
     updated["平均速度_kmh"] = a.number_input("非早高峰速度（公里/小时）", min_value=1.0, value=rates["平均速度_kmh"])
     updated["早高峰速度_kmh"] = b.number_input("07:00–09:00 速度（公里/小时）", min_value=1.0, value=rates["早高峰速度_kmh"])

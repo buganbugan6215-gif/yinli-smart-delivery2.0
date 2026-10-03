@@ -48,7 +48,12 @@ def test_staff_and_customer_pages_share_cutoff(tmp_path, monkeypatch, instant, c
     assert not any("23:59" in c.value for c in staff.caption)
     status = next(m.value for m in staff.metric if m.label == "批次状态")
     assert status == ("已截止，待调度" if closed else "正在收单")
-    assert any(b.label == "一次计算全部订单的矩阵与线路" for b in staff.button) == closed
+    assert any(b.label == "立即计算路径" and not b.disabled for b in staff.button)
+    if not closed:
+        next(b for b in staff.button if b.label == "立即计算路径").click().run()
+        assert not staff.exception
+        assert next(m.value for m in staff.metric if m.label == "待计算订单") == "0"
+        assert next(b for b in staff.button if b.label == "统一确认全部线路并开始备货").disabled
     customer = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     customer.switch_page("pages/客户下单.py").run()
     assert not customer.exception

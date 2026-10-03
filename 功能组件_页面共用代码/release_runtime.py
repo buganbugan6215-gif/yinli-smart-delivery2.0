@@ -11,7 +11,7 @@ VERSION_FILE = Path(__file__).with_name("release_version.json")
 def ensure_current_release():
     with _LOCK:
         version = json.loads(VERSION_FILE.read_text(encoding="utf-8"))["version"]
-        for name in ("order_state", "batch_solver", "batch_dispatch", "ui"):
+        for name in ("order_state", "batch_solver", "batch_dispatch", "gps_simulator", "ui"):
             module = importlib.import_module(f"功能组件_页面共用代码.{name}")
             if getattr(module, "RELEASE_VERSION", None) != version:
                 importlib.reload(module)

@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-audit-v13"
+RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
 
 import copy
 import hashlib
@@ -29,6 +29,50 @@ def day_orders(day):
 
 def _tables(connection):
     connection.execute("CREATE TABLE IF NOT EXISTS delivery_batches (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    connection.execute("CREATE TABLE IF NOT EXISTS delivery_drafts (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+
+
+def get_draft(day):
+    with state._db_connection() as conn:
+        _tables(conn)
+        row = conn.execute("SELECT payload FROM delivery_drafts WHERE delivery_day=?", (str(day),)).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def save_draft(plan, now=None):
+    """保存完整计算快照；计算期间新到订单不被误标为已计算。"""
+    day = plan["配送日期"]
+    if plan.get("参数") != state.pricing_settings():
+        raise ValueError("车辆或成本参数已变化，请重新计算。")
+    with state._db_connection() as conn:
+        _tables(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT 1 FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone():
+            raise ValueError("该配送日已统一确认，不能重新计算覆盖。")
+        ids = {a["订单编号"] for a in plan.get("订单结果", [])}
+        records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
+        snapshot = [o for o in records if o["订单编号"] in ids]
+        validate_result(plan, snapshot)
+        if any(o.get("状态") not in state.STATUS_FLOW[:2] for o in snapshot):
+            raise ValueError("订单已进入配送流程，请刷新后检查。")
+        saved = copy.deepcopy(plan)
+        saved["计算时间"] = (now or beijing_now()).isoformat()
+        saved["订单指纹"] = {o["订单编号"]: input_fingerprint([o]) for o in snapshot}
+        conn.execute("INSERT OR REPLACE INTO delivery_drafts VALUES (?, ?)", (day, json.dumps(saved, ensure_ascii=False)))
+    return saved
+
+
+def calculation_groups(day, orders=None):
+    """列表分类，不删除订单，不改变客户的配送状态。"""
+    orders = day_orders(day) if orders is None else orders
+    confirmed = get_batch(day)
+    if confirmed:
+        ids = {a["订单编号"] for a in confirmed["订单结果"]}
+    else:
+        draft = get_draft(day)
+        marks = draft.get("订单指纹", {}) if draft and draft.get("参数") == state.pricing_settings() else {}
+        ids = {o["订单编号"] for o in orders if marks.get(o["订单编号"]) == input_fingerprint([o])}
+    return ([o for o in orders if o["订单编号"] not in ids], [o for o in orders if o["订单编号"] in ids])
 
 
 def get_batch(day):
@@ -110,9 +154,11 @@ def confirm_batch(plan, now=None):
         assignment = {a["订单编号"]: a for a in plan["订单结果"]}
         for o in orders:
             o.update(assignment[o["订单编号"]])
+            o["行驶参数"] = {key: plan["参数"][key] for key in ("平均速度_kmh", "早高峰速度_kmh")}
             o.update({"状态": "仓库备货中", "状态序号": 2, "数据模式": "整日批次 Dijkstra 统一调度", "批次编号": day})
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(o, ensure_ascii=False), result["确认时间"], o["订单编号"]))
         conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", (day, json.dumps(result, ensure_ascii=False)))
+        conn.execute("DELETE FROM delivery_drafts WHERE delivery_day=?", (day,))
     return result
 
 

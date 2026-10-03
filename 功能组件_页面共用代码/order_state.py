@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-audit-v13"
+RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
 
 from datetime import date, datetime
 import json
@@ -50,11 +50,13 @@ def pricing_settings() -> dict[str, float]:
         "配送制冷系数_元每小时": 18.0, "服务制冷系数_元每小时": 12.0,
         "早到惩罚_元每小时": 8.0, "晚到惩罚_元每小时": 30.0,
         "运输货损率": 0.005, "服务货损率": 0.002,
-        "平均速度_kmh": 35.0, "早高峰速度_kmh": 25.0,
+        "平均速度_kmh": 60.0, "早高峰速度_kmh": 30.0,
         "鲜面条单价_元每kg": 8.0, "生姜单价_元每kg": 10.0, "大蒜单价_元每kg": 12.0,
     }
     try:
         saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        if saved.get("速度规则版本") != "2026-10-03-60-30":
+            saved.update({"平均速度_kmh": 60.0, "早高峰速度_kmh": 30.0})
         return {key: float(saved.get(key, value)) for key, value in defaults.items()}
     except (OSError, ValueError, TypeError):
         return defaults
@@ -62,7 +64,7 @@ def pricing_settings() -> dict[str, float]:
 
 def save_pricing_settings(values: dict[str, float]) -> None:
     ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
+    SETTINGS_PATH.write_text(json.dumps({**values, "速度规则版本": "2026-10-03-60-30"}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def minutes_from_midnight(value: str) -> int:
