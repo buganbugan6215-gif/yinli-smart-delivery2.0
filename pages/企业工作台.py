@@ -13,6 +13,7 @@ from 功能组件_页面共用代码.order_state import pricing_settings
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day, batch_closed, cutoff_label
 from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint, confirm_batch, advance_batch, workbook_bytes, get_draft, save_draft, calculation_groups
 from 功能组件_页面共用代码.batch_solver import solve_batch
+from 功能组件_页面共用代码 import warehouses, warehouse_ui
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
 
 inject_css()
@@ -28,6 +29,14 @@ with order_tab:
     st.caption(f"截止时间：{cutoff_label(day)}")
     if st.button("刷新本配送日订单"):
         st.rerun()
+    count, mode_changed = warehouse_ui.selector(day)
+    if mode_changed and day_orders(day):
+        previous_plan = get_draft(day)
+        try:
+            warehouse_ui.calculate(day, previous_plan["发车分钟"] if previous_plan else 360)
+            st.rerun()
+        except (ValueError, OSError) as exc:
+            st.error(str(exc))
     orders = day_orders(day)
     closed = batch_closed(day)
     batch = get_batch(day)
@@ -53,14 +62,14 @@ with order_tab:
             st.success("当前订单均已计算，已从待计算列表移出。")
         if plan and pending:
             st.caption("新增或变更订单将与已计算订单合并重算，保证车辆分配与整日线路一致。")
-        stale = bool(plan and (input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or departure.hour*60+departure.minute != plan["发车分钟"]))
+        stale = bool(plan and (not warehouses.current(plan) or input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or departure.hour*60+departure.minute != plan["发车分钟"]))
         with st.container(key="dispatch_compute"):
             compute_now = st.button("立即计算路径", type="primary", icon=":material/route:", disabled=not pending and not stale, use_container_width=True)
         if compute_now:
             progress = st.progress(0.0, text="正在加载货车路网…")
             try:
                 plan = solve_batch(orders, pricing_settings(), departure.hour*60+departure.minute,
-                                   lambda value, message: progress.progress(value, text=message))
+                                   lambda value, message: progress.progress(value, text=message), warehouse_count=count)
                 plan["输入指纹"] = input_fingerprint(orders)
                 save_draft(plan)
                 st.rerun()
@@ -71,13 +80,19 @@ with order_tab:
         plan = get_draft(day)
         if plan:
             current_input = input_fingerprint(orders)
-            stale = (current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
+            stale = (not warehouses.current(plan) or current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
                      departure.hour*60+departure.minute != plan["发车分钟"])
             if stale:
-                st.warning("订单、车辆参数或计划发车时间已变化，请重新计算后确认。")
+                st.warning("订单、仓库模式、车辆参数或计划发车时间已变化，请重新计算后确认。")
+            if stale:
+                st.info("原方案已失效，重新计算后显示所选仓库的成本和路线。")
+                st.stop()
             st.markdown("### 已计算 · 方案预览")
+            warehouse_ui.render_cost(plan)
+            with st.expander("查看所选仓库的配送地图", expanded=True):
+                warehouse_ui.render_map(plan, key=f"dispatch-map-{day}-{count}")
             st.caption(f"计算时间：{plan['计算时间'][:19].replace('T', ' ')}（北京时间）；订单记录完整保留。")
-            display_table(pd.DataFrame([{k:v for k,v in r.items() if k not in {"路线GeoJSON", "订单编号列表"}} for r in plan["线路"]]), hide_index=True, use_container_width=True)
+            warehouse_ui.route_table(plan)
             st.caption(plan["算法"].replace("Dijkstra", "道路最短路径算法") + "；无法覆盖全部订单时不允许发布部分方案。")
             with st.expander("核对全部订单分配和最短距离矩阵"):
                 display_table(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]), hide_index=True, use_container_width=True)
@@ -89,6 +104,7 @@ with order_tab:
                 except ValueError as exc:
                     st.error(str(exc))
     if batch:
+        warehouse_ui.render_cost(batch)
         st.success(f"本配送日 {len(batch['订单结果'])} 个订单、{len(batch['线路'])} 条线路已统一确认。")
         display_table(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in batch["订单结果"]]), hide_index=True, use_container_width=True)
         statuses = {o["状态"] for o in orders}

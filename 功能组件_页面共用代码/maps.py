@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import folium
+from functools import lru_cache
+from html import escape
+
+RELEASE_VERSION = "2026-10-10-dual-depot-v16"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +16,7 @@ DATA_DIR = ROOT / "网站数据_页面读取的指标"
 DEPOT = [30.851137170192068, 104.26104981303031]
 
 
+@lru_cache(maxsize=4)
 def load_geojson(name: str) -> dict[str, Any]:
     path = DATA_DIR / name
     if not path.exists():
@@ -19,7 +24,7 @@ def load_geojson(name: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def create_chengdu_map(zoom_start: int = 10) -> tuple[folium.Map, folium.GeoJson | None]:
+def create_chengdu_map(zoom_start: int = 10, warehouses=None) -> tuple[folium.Map, folium.GeoJson | None]:
     fmap = folium.Map(location=DEPOT, zoom_start=zoom_start, tiles=None, control_scale=True, prefer_canvas=True)
     fmap.get_root().header.add_child(folium.Element("""<style>
     .leaflet-container { background:#e1e9f5; }
@@ -50,11 +55,11 @@ def create_chengdu_map(zoom_start: int = 10) -> tuple[folium.Map, folium.GeoJson
             show=False,
         ).add_to(fmap)
 
-    folium.Marker(
-        DEPOT,
-        tooltip="银犁配送中心",
-        icon=folium.Icon(color="darkgreen", icon="home"),
-    ).add_to(fmap)
+    from 功能组件_页面共用代码.warehouses import depots
+    for depot in warehouses if warehouses is not None else depots(1):
+        lon, lat = depot["坐标"]
+        folium.Marker([lat, lon], tooltip=depot["名称"],
+                      icon=folium.Icon(color="darkblue" if depot["编号"] == "D0" else "blue", icon="home")).add_to(fmap)
     return fmap, minor_layer
 
 
@@ -125,3 +130,30 @@ def add_customer_points(fmap: folium.Map, geojson: dict[str, Any], product_code:
             [coords[1], coords[0]], radius=4.5, color=colors.get(code, "#1750df"),
             fill=True, fill_opacity=0.88, popup=popup, tooltip=props.get("label", "客户")
         ).add_to(fmap)
+
+
+def plan_map(plan):
+    from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
+    fmap, minor = create_chengdu_map(warehouses=plan.get("仓库"))
+    bounds = []
+    for route in plan["线路"]:
+        product = route.get("品类", "鲜面条")
+        color = PRODUCT_COLORS[product]
+        style = {"color": color, "weight": 4, "opacity": .9, "dashArray": "8 8" if product == "姜蒜" else None}
+        folium.GeoJson(route["路线GeoJSON"], name=route["线路编号"], style_function=lambda _, s=style: s,
+                       tooltip=escape(f"{route['线路编号']} · {route.get('出发仓库', '原配送中心')} · {route['车辆编号']}")).add_to(fmap)
+        for feature in route["路线GeoJSON"]["features"]:
+            bounds.extend([[p[1], p[0]] for p in feature["geometry"]["coordinates"]])
+    for transfer in plan.get("补货", []):
+        folium.GeoJson(transfer["路线GeoJSON"], name=f"{transfer['品类']}仓间补货",
+                       style_function=lambda _: {"color": "#526c95", "weight": 3, "dashArray": "5 9", "opacity": .7},
+                       tooltip=f"{transfer['品类']}补货 · {transfer['补货车数']}车").add_to(fmap)
+    for assignment in plan["订单结果"]:
+        coords = assignment["路线GeoJSON"]["features"][0]["geometry"]["coordinates"][-1]
+        folium.CircleMarker([coords[1], coords[0]], radius=4, color="#244775", fill=True,
+                            tooltip=escape(f"{assignment['订单编号']} · 第{assignment['配送顺序']}站")).add_to(fmap)
+    if bounds:
+        fmap.fit_bounds(bounds, padding=(28, 28), max_zoom=13)
+    add_zoom_detail_behavior(fmap, minor, threshold=13)
+    folium.LayerControl(collapsed=True).add_to(fmap)
+    return fmap

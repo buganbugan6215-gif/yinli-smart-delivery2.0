@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
+RELEASE_VERSION = "2026-10-10-dual-depot-v16"
 
 from functools import lru_cache
 import gzip
@@ -81,52 +81,64 @@ def route_schedule(sequence, orders, matrix, vehicle, departure, rates):
     load = sum(float(orders[i-1]["配送重量_kg"]) for i in sequence)
     if load > vehicle["capacity"] + 1e-8:
         return None
-    km, clock, previous, arrivals = 0.0, departure, 0, []
+    depot = vehicle.get("depot", 0)
+    departure = max(departure, vehicle.get("ready", 0))
+    km, clock, previous, arrivals = 0.0, departure, depot, []
+    travel_sum = wait_sum = service_sum = weighted = 0.0
+    remaining = load
     for i in sequence:
         order = orders[i-1]
         distance = matrix[previous][i] / 1000
-        clock += travel_minutes(distance, clock, rates["平均速度_kmh"], rates["早高峰速度_kmh"])
+        travel = travel_minutes(distance, clock, rates["平均速度_kmh"], rates["早高峰速度_kmh"])
+        travel_sum += travel
+        weighted += distance * (1 + rates.get("满载续航增幅", .2) * remaining / vehicle["capacity"])
+        clock += travel
+        wait_sum += max(0, float(order["期望窗开始_分钟"]) - clock)
         clock = max(clock, float(order["期望窗开始_分钟"]))
         if clock > float(order["期望窗结束_分钟"]) + 1e-8:
             return None
         arrivals.append(clock)
         clock += float(order["服务时间_分钟"])
+        service_sum += float(order["服务时间_分钟"])
+        remaining -= float(order["配送重量_kg"])
         km += distance
         previous = i
-    km += matrix[previous][0] / 1000
-    clock += travel_minutes(matrix[previous][0] / 1000, clock, rates["平均速度_kmh"], rates["早高峰速度_kmh"])
-    if km > vehicle["range"] + 1e-8 or clock > 1440:
+    back = matrix[previous][depot] / 1000
+    km += back
+    weighted += back
+    travel = travel_minutes(back, clock, rates["平均速度_kmh"], rates["早高峰速度_kmh"])
+    travel_sum += travel
+    clock += travel
+    if weighted > vehicle["range"] + 1e-8 or clock > 1440:
         return None
-    return {"km": km, "load": load, "arrivals": arrivals, "return_minute": clock}
+    loss_rate = 1 - (1-rates["运输货损率"]) * (1-rates["服务货损率"])
+    loss = 0.0
+    for i in sequence:
+        o = orders[i-1]
+        if o["品类"] == "鲜面条":
+            value = float(o["配送重量_kg"]) * rates["鲜面条单价_元每kg"]
+        else:
+            ginger, garlic = float(o.get("生姜需求量_kg", 0)), float(o.get("大蒜需求量_kg", 0))
+            if abs(ginger + garlic - float(o["配送重量_kg"])) > .001:
+                garlic = float(o["配送重量_kg"]) * rates.get("大蒜占比", .6053674793)
+                ginger = float(o["配送重量_kg"]) - garlic
+            value = ginger*rates["生姜单价_元每kg"] + garlic*rates["大蒜单价_元每kg"]
+        loss += value*loss_rate
+    cooling = (travel_sum+wait_sum)/60*rates["配送制冷系数_元每小时"] + service_sum/60*rates["服务制冷系数_元每小时"]
+    return {"km": km, "load": load, "arrivals": arrivals, "return_minute": clock,
+            "departure": departure, "transport": km*vehicle["per_km"], "cooling": cooling, "loss": loss,
+            "variable": km*vehicle["per_km"]+cooling+loss}
 
 
-def assign_routes(orders, matrix, rates, departure=360, strategy="deadline"):
-    vehicles = []
-    for kind in ("小型冷藏车", "大型冷藏车"):
-        for i in range(int(rates[kind + "数量"])):
-            vehicles.append({"id": f"{kind}-{i+1:02d}", "capacity": rates[kind + "载重_kg"],
-                             "range": rates[kind + "续航_km"], "fixed": rates[kind + "固定成本_元"],
-                             "per_km": rates[kind + "单位运输成本_元每km"], "sequence": []})
-    priority = (lambda i: (-float(orders[i-1]["配送重量_kg"]), orders[i-1]["期望窗结束_分钟"])) if strategy == "weight" else (lambda i: (orders[i-1]["期望窗结束_分钟"], -float(orders[i-1]["配送重量_kg"])))
-    for customer in sorted(range(1, len(orders)+1), key=priority):
-        best = None
-        for vi, vehicle in enumerate(vehicles):
-            old = route_schedule(vehicle["sequence"], orders, matrix, vehicle, departure, rates)
-            for pos in range(len(vehicle["sequence"])+1):
-                trial = vehicle["sequence"][:pos] + [customer] + vehicle["sequence"][pos:]
-                schedule = route_schedule(trial, orders, matrix, vehicle, departure, rates)
-                if schedule is None:
-                    continue
-                increment = (schedule["km"] - old["km"]) * vehicle["per_km"] + (vehicle["fixed"] if not vehicle["sequence"] else 0)
-                if best is None or increment < best[0]:
-                    best = (increment, vi, trial)
-        if best is None:
-            raise ValueError(f"未找到覆盖全部订单的可行方案：{orders[customer-1]['订单编号']} 无法插入现有车辆线路。请核对车辆、载重、续航和时间窗；未发布任何部分结果。")
-        vehicles[best[1]]["sequence"] = best[2]
-    return [v for v in vehicles if v["sequence"]]
+def assign_routes(orders, matrix, rates, departure=360, strategy="deadline", warehouse_count=1):
+    from 功能组件_页面共用代码.warehouse_routing import allocate
+    return allocate(orders, matrix, rates, departure, strategy, warehouse_count)
 
 
-def solve_batch(orders, rates, departure=360, progress=None):
+def solve_batch(orders, rates, departure=360, progress=None, warehouse_count=1):
+    from 功能组件_页面共用代码.warehouses import depots, snapshot
+    from 功能组件_页面共用代码.warehouse_routing import cost_summary, replenishment
+    warehouses = depots(warehouse_count)
     if not orders:
         raise ValueError("本批次没有订单。")
     if not 0 <= departure < 1440:
@@ -140,7 +152,7 @@ def solve_batch(orders, rates, departure=360, progress=None):
             raise ValueError("订单必须按鲜面条、姜蒜拆分后调度。")
         if not math.isfinite(float(o["配送重量_kg"])) or float(o["配送重量_kg"]) <= 0:
             raise ValueError("订单重量必须大于零。")
-    points = [DEPOT] + [[float(o["经度"]), float(o["纬度"])] for o in orders]
+    points = [DEPOT] + [[float(o["经度"]), float(o["纬度"])] for o in orders] + [d["坐标"] for d in warehouses[1:]]
     if any(not all(math.isfinite(v) for v in p) or not (-180 <= p[0] <= 180 and -90 <= p[1] <= 90) for p in points):
         raise ValueError("订单包含非法坐标。")
     graph, edge_map, coords, tree, scale, source_hash = load_graph()
@@ -148,7 +160,7 @@ def solve_batch(orders, rates, departure=360, progress=None):
     snaps = [haversine_m(p, coords[n]) for p, n in zip(points, nodes)]
     if max(snaps) > 3000:
         raise ValueError("存在距离已知货车路网超过 3 公里的收货点，请先核对地址。")
-    labels = ["配送中心"] + ids
+    labels = ["配送中心"] + ids + ["新增配送点"] * (warehouse_count-1)
     matrix, predecessors = [], []
     for i, node in enumerate(nodes):
         lengths, pred = dijkstra(graph, directed=True, indices=int(node), return_predecessors=True)
@@ -159,7 +171,7 @@ def solve_batch(orders, rates, departure=360, progress=None):
         predecessors.append(pred)
         if progress:
             progress((i+1)/(len(nodes)+1), f"已计算 {i+1}/{len(nodes)} 个业务点的最短路径")
-    vehicles = assign_routes(orders, matrix, rates, departure)
+    vehicles = assign_routes(orders, matrix, rates, departure, warehouse_count=warehouse_count)
 
     def leg(a, b):
         if points[a] == points[b]:
@@ -185,7 +197,9 @@ def solve_batch(orders, rates, departure=360, progress=None):
         sequence = vehicle["sequence"]
         route_id = f"YL-{day.replace('-', '')}-{vi:02d}"
         schedule = route_schedule(sequence, orders, matrix, vehicle, departure, rates)
-        features, prefix, cumulative, previous = [], [], 0.0, 0
+        depot_index = vehicle.get("depot", 0)
+        warehouse = warehouses[0 if depot_index == 0 else 1]
+        features, prefix, cumulative, previous = [], [], 0.0, depot_index
         for stop, i in enumerate(sequence, 1):
             geometry = leg(previous, i)
             prefix.extend(geometry if not prefix else geometry[1:])
@@ -194,15 +208,19 @@ def solve_batch(orders, rates, departure=360, progress=None):
             # 客户只获得到自身收货点的道路及自身信息，不携带其他客户标识/站点表。
             own_route = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"线路编号": route_id, "route_mode": "Dijkstra路网最短路径"}, "geometry": {"type": "LineString", "coordinates": list(prefix)}}]}
             assignments.append({"订单编号": ids[i-1], "配送日期": day, "线路编号": route_id,
-                                "车辆编号": vehicle["id"], "配送顺序": stop, "计划到达_分钟": schedule["arrivals"][stop-1],
+                                "车辆编号": vehicle["id"], "出发仓库": warehouse["名称"], "仓库编号": warehouse["编号"], "仓库坐标": warehouse["坐标"], "计划发车_分钟": schedule["departure"], "配送顺序": stop, "计划到达_分钟": schedule["arrivals"][stop-1],
                                 "路线GeoJSON": own_route, "路网最短距离_km": cumulative})
             previous = i
-        features.append({"type": "Feature", "properties": {"线路编号": route_id, "route_mode": "Dijkstra路网最短路径"}, "geometry": {"type": "LineString", "coordinates": leg(previous, 0)}})
-        routes.append({"线路编号": route_id, "车辆编号": vehicle["id"], "品类": orders[sequence[0]-1]["品类"], "订单编号列表": [ids[i-1] for i in sequence],
+        features.append({"type": "Feature", "properties": {"线路编号": route_id, "route_mode": "Dijkstra路网最短路径"}, "geometry": {"type": "LineString", "coordinates": leg(previous, depot_index)}})
+        routes.append({"出发仓库": warehouse["名称"], "仓库编号": warehouse["编号"], "发车时间_分钟": schedule["departure"], "运输费_元": schedule["transport"], "制冷费_元": schedule["cooling"], "货损费_元": schedule["loss"], "时间窗罚金_元": 0.0, "线路编号": route_id, "车辆编号": vehicle["id"], "品类": orders[sequence[0]-1]["品类"], "订单编号列表": [ids[i-1] for i in sequence],
                        "总重量_kg": schedule["load"], "总里程_km": schedule["km"], "返回时间_分钟": schedule["return_minute"],
                        "路线GeoJSON": {"type": "FeatureCollection", "features": features}})
     if progress:
         progress(1.0, "整日距离矩阵和配送线路已生成")
-    return {"配送日期": day, "矩阵标签": labels, "距离矩阵_m": matrix, "线路": routes, "订单结果": assignments,
+    transfer = replenishment(orders, vehicles, matrix, rates, warehouse_count)
+    for item in transfer:
+        item["路线GeoJSON"] = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {}, "geometry": {"type": "LineString", "coordinates": leg(0, len(orders)+1) + leg(len(orders)+1, 0)[1:]}}]}
+    return {"仓库数量": warehouse_count, "仓配配置": snapshot(warehouse_count), "仓库": warehouses,
+            "补货": transfer, "成本": cost_summary(routes, transfer, rates, warehouse_count), "配送日期": day, "矩阵标签": labels, "距离矩阵_m": matrix, "线路": routes, "订单结果": assignments,
             "发车分钟": departure, "参数": rates, "路网指纹": source_hash,
-            "算法": "有向 Dijkstra 最短路径矩阵 + 载重/续航/时间窗可行插入（非全局最优）"}
+            "算法": "有向 Dijkstra 最短路径矩阵 + 多仓共享车队/补货就绪/载重/续航/时间窗可行插入（非全局最优）"}

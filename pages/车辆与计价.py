@@ -10,6 +10,7 @@ render_sidebar()
 require_staff_access()
 page_title("车辆与计价", "维护车辆资源与报价；已确认方案保留确认时参数")
 rates = pricing_settings()
+st.caption("车辆及运营成本默认采用第二版模型：小型 4.2 米／中型 7.6 米冷藏车。已人工调整的参数保留；两仓共用此车队。")
 updated = dict(rates)
 with st.form("operations_parameters"):
     for kind in ("小型冷藏车", "大型冷藏车"):
@@ -23,6 +24,13 @@ with st.form("operations_parameters"):
     a, b = st.columns(2)
     updated["平均速度_kmh"] = a.number_input("非早高峰速度（公里/小时）", min_value=1.0, value=rates["平均速度_kmh"])
     updated["早高峰速度_kmh"] = b.number_input("07:00–09:00 速度（公里/小时）", min_value=1.0, value=rates["早高峰速度_kmh"])
+    st.subheader("配送成本参数")
+    cols = st.columns(2)
+    for i, key in enumerate(("配送制冷系数_元每小时", "服务制冷系数_元每小时", "运输货损率", "服务货损率", "鲜面条单价_元每kg", "生姜单价_元每kg", "大蒜单价_元每kg", "大蒜占比")):
+        updated[key] = cols[i % 2].number_input(chinese_column(key), min_value=0.0, max_value=1.0 if key in ("运输货损率", "服务货损率", "大蒜占比") else None, value=rates[key], key=key, format="%.4f")
+    st.caption("姜蒜订单优先按客户填写的姜、蒜重量计货值；仅旧订单缺少拆分时使用默认大蒜占比。")
+    st.subheader("仓间补货口径")
+    st.caption("原仓 02:00 货物就绪；装车、卸车各 30 分钟。鲜面条与姜蒜分别补货，每 7,000 千克一辆外租车；每车每日固定费 400 元，行驶费 4 元/公里，制冷按上方费率。新增场地费尚未提供。")
     st.subheader("客户配送报价")
     cols = st.columns(2)
     for i, key in enumerate(("起步价_元", "里程价_元每km", "鲜面条_元每kg", "姜蒜_元每kg")):

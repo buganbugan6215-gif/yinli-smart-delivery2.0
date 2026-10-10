@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
+RELEASE_VERSION = "2026-10-10-dual-depot-v16"
 
 import copy
 import hashlib
@@ -18,8 +18,9 @@ INPUT_FIELDS = ("订单编号", "期望送达日期", "经度", "纬度", "品�
                 "期望窗开始_分钟", "期望窗结束_分钟", "服务时间_分钟")
 
 
-def input_fingerprint(orders):
-    rows = [{key: o.get(key) for key in INPUT_FIELDS} for o in sorted(orders, key=lambda o: o["订单编号"])]
+def input_fingerprint(orders, legacy=False):
+    fields = INPUT_FIELDS if legacy else INPUT_FIELDS + ("生姜需求量_kg", "大蒜需求量_kg")
+    rows = [{key: o.get(key) for key in fields} for o in sorted(orders, key=lambda o: o["订单编号"])]
     return hashlib.sha256(json.dumps(rows, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -42,11 +43,18 @@ def get_draft(day):
 def save_draft(plan, now=None):
     """保存完整计算快照；计算期间新到订单不被误标为已计算。"""
     day = plan["配送日期"]
+    from 功能组件_页面共用代码.warehouses import current
+    if not current(plan):
+        raise ValueError("仓库模式、仓配配置或路网已变化，请重新计算。")
     if plan.get("参数") != state.pricing_settings():
         raise ValueError("车辆或成本参数已变化，请重新计算。")
     with state._db_connection() as conn:
         _tables(conn)
         conn.execute("BEGIN IMMEDIATE")
+        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+        selected = conn.execute("SELECT count FROM warehouse_selection WHERE day=?", (day,)).fetchone()
+        if plan.get("仓库数量", 1) != (selected[0] if selected else 1):
+            raise ValueError("计算期间仓库模式已变化，请重新计算。")
         if conn.execute("SELECT 1 FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone():
             raise ValueError("该配送日已统一确认，不能重新计算覆盖。")
         ids = {a["订单编号"] for a in plan.get("订单结果", [])}
@@ -70,7 +78,8 @@ def calculation_groups(day, orders=None):
         ids = {a["订单编号"] for a in confirmed["订单结果"]}
     else:
         draft = get_draft(day)
-        marks = draft.get("订单指纹", {}) if draft and draft.get("参数") == state.pricing_settings() else {}
+        from 功能组件_页面共用代码.warehouses import current
+        marks = draft.get("订单指纹", {}) if draft and draft.get("参数") == state.pricing_settings() and current(draft) else {}
         ids = {o["订单编号"] for o in orders if marks.get(o["订单编号"]) == input_fingerprint([o])}
     return ([o for o in orders if o["订单编号"] not in ids], [o for o in orders if o["订单编号"] in ids])
 
@@ -86,7 +95,7 @@ def validate_result(plan, orders):
     expected = {o["订单编号"] for o in orders}
     if not expected or len(expected) != len(orders):
         raise ValueError("批次为空或包含重复订单。")
-    if plan.get("输入指纹") != input_fingerprint(orders):
+    if plan.get("输入指纹") != input_fingerprint(orders, legacy="仓库" not in plan):
         raise ValueError("订单已变化，请重新计算整个批次。")
     if {str(o["期望送达日期"]) for o in orders} != {plan.get("配送日期")}:
         raise ValueError("结果配送日期不匹配。")
@@ -96,7 +105,9 @@ def validate_result(plan, orders):
         raise ValueError("结果必须覆盖当天全部订单，且每单只能出现一次。")
     labels = plan.get("矩阵标签", [])
     matrix = plan.get("距离矩阵_m", [])
-    if len(labels) != len(expected)+1 or labels[0] != "配送中心" or set(labels[1:]) != expected:
+    count = plan.get("仓库数量", 1)
+    customer_labels = labels[1:] if count == 1 else labels[1:-1]
+    if count not in (1, 2) or len(labels) != len(expected)+count or labels[0] != "配送中心" or set(customer_labels) != expected or (count == 2 and labels[-1] != "新增配送点"):
         raise ValueError("距离矩阵未覆盖全部客户与配送中心。")
     if len(matrix) != len(labels) or any(len(r) != len(labels) for r in matrix):
         raise ValueError("距离矩阵维度不正确。")
@@ -120,10 +131,28 @@ def validate_result(plan, orders):
             raise ValueError("鲜面条与姜蒜不能同车混装，请重新计算分品类线路。")
     if any(len(kinds) > 1 for kinds in vehicle_products.values()):
         raise ValueError("同一车辆不能承担本批次两种品类，请分别安排车辆。")
+    if "仓库" in plan:
+        from 功能组件_页面共用代码.warehouses import depots
+        if plan["仓库"] != depots(count):
+            raise ValueError("仓库点位与指定的原仓、新增点不一致。")
+        allowed = {d["编号"]: d for d in plan["仓库"]}
+        vehicle_depots = {}
+        for route in routes:
+            key = route.get("仓库编号")
+            if key not in allowed:
+                raise ValueError("线路出发仓库不属于当前方案。")
+            previous = vehicle_depots.setdefault(route["车辆编号"], key)
+            if previous != key:
+                raise ValueError("同一车辆不能同时驻守两个仓库。")
+            features = route["路线GeoJSON"]["features"]
+            if features[0]["geometry"]["coordinates"][0] != allowed[key]["坐标"] or features[-1]["geometry"]["coordinates"][-1] != allowed[key]["坐标"]:
+                raise ValueError("线路未从所属仓库出发并返回。")
     for a in assignments:
         route = next((r for r in routes if r["线路编号"] == a["线路编号"]), None)
         if route is None or a["车辆编号"] != route["车辆编号"] or route["订单编号列表"][a["配送顺序"]-1] != a["订单编号"]:
             raise ValueError("订单、车辆与线路不一致。")
+        if "仓库" in plan and a.get("仓库编号") != route.get("仓库编号"):
+            raise ValueError("订单与线路仓库不一致。")
         if not state_route_valid(a):
             raise ValueError("订单缺少有效道路路线。")
 
@@ -137,11 +166,18 @@ def confirm_batch(plan, now=None):
     day = plan["配送日期"]
     if not batch_closed(day, now):
         raise ValueError("尚未到截止时间，只能查看订单，不能确认收单中的批次。")
+    from 功能组件_页面共用代码.warehouses import current
+    if not current(plan):
+        raise ValueError("仓库模式、仓配配置或路网已变化，请重新计算。")
     if plan.get("参数") != state.pricing_settings():
         raise ValueError("车辆或成本参数已变化，请重新计算。")
     with state._db_connection() as conn:
         _tables(conn)
         conn.execute("BEGIN IMMEDIATE")
+        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+        selected = conn.execute("SELECT count FROM warehouse_selection WHERE day=?", (day,)).fetchone()
+        if plan.get("仓库数量", 1) != (selected[0] if selected else 1):
+            raise ValueError("计算期间仓库模式已变化，请重新计算。")
         if conn.execute("SELECT 1 FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone():
             raise ValueError("该配送日已统一确认，不能重复覆盖。")
         records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
@@ -196,4 +232,8 @@ def workbook_bytes(plan):
         pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"]).to_excel(writer, sheet_name="最短距离矩阵_米")
         pd.DataFrame([{k: v for k, v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]).to_excel(writer, sheet_name="订单线路分配", index=False)
         pd.DataFrame([{k: v for k, v in r.items() if k not in {"路线GeoJSON", "订单编号列表"}} for r in plan["线路"]]).to_excel(writer, sheet_name="线路汇总", index=False)
+        if plan.get("仓库"):
+            pd.DataFrame(plan["仓库"]).to_excel(writer, sheet_name="启用仓库", index=False)
+            pd.DataFrame([{k:v for k,v in t.items() if k != "路线GeoJSON"} for t in plan.get("补货", [])]).to_excel(writer, sheet_name="分品类补货", index=False)
+            pd.DataFrame([{"费用项目":k,"金额_元":v} for k,v in plan["成本"].items()]).to_excel(writer, sheet_name="计划成本", index=False)
     return output.getvalue()

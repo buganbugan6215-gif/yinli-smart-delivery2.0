@@ -1,0 +1,14 @@
+{
+  "crs": "EPSG:4326",
+  "unit": "m",
+  "source": "14.0-客户最短路径计算路网.gpkg",
+  "source_sha256": "de827a2401fc13b51b0d8bfb8193d5c4397a9a33f3eff27fc0481c60ec868865",
+  "bounds": [
+    103.6055422,
+    30.405035799999997,
+    104.4524161,
+    31.066814899999994
+  ],
+  "edge_count": 134007,
+  "attribution": "道路来源：竞赛第二版整理路网 / © OpenStreetMap contributors，ODbL 1.0"
+}

@@ -55,10 +55,14 @@ if st.button("更新订单状态", key="refresh_tracking_status"):
 # 会话内只保留当前订单的底图；车辆移动不改变底图脚本或组件标识。
 routes = [(o["订单编号"], o["品类"], o.get("路线GeoJSON")) for o in group if is_dijkstra_route(o) and o.get("线路编号")]
 routes.sort(key=lambda item: item[1] == "姜蒜")
-map_key = (order.get("总单编号") or str(active), hashlib.sha256(json.dumps(routes, sort_keys=True).encode()).hexdigest())
+map_key = ("expanded-v16", order.get("总单编号") or str(active), hashlib.sha256(json.dumps(routes, sort_keys=True).encode()).hexdigest())
 cached = st.session_state.get("tracking_base_map")
 if cached is None or cached[0] != map_key:
-    fmap, minor_layer = create_chengdu_map(zoom_start=10)
+    warehouses = {o.get("仓库编号", "D0"): {"编号": o.get("仓库编号", "D0"), "名称": o.get("出发仓库", "原配送中心"), "坐标": o.get("仓库坐标", [104.26104981303031, 30.851137170192068])} for o in group}
+    fmap, minor_layer = create_chengdu_map(zoom_start=10, warehouses=list(warehouses.values()))
+    bounds = [[p[1], p[0]] for _, _, r in routes for f in r["features"] for p in f["geometry"]["coordinates"]]
+    if bounds:
+        fmap.fit_bounds(bounds, padding=(28, 28), max_zoom=13)
     for oid, product, route in routes:
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 7 if product == "鲜面条" else 4, "opacity": 0.9, "dashArray": "8 8" if product == "姜蒜" else None}
@@ -92,7 +96,7 @@ def render_live_tracking() -> None:
                 icon=folium.Icon(color="blue" if current["品类"] == "鲜面条" else "orange", icon="truck", prefix="fa"),
             ).add_to(vehicles)
     # 组件会修改传入对象的内部 ID 和图层，使用副本保护缓存底图。
-    st_folium(copy.deepcopy(fmap), use_container_width=True, height=650, returned_objects=[], key=f"tracking-map-{map_key[0]}", feature_group_to_add=vehicles, render=False)
+    st_folium(copy.deepcopy(fmap), use_container_width=True, height=650, returned_objects=[], key=f"tracking-map-{map_key[1]}", feature_group_to_add=vehicles, render=False)
     if all(o.get("状态") in {"已送达", "签收完成"} for o in latest):
         st.caption("车辆已到达，自动更新已停止；地图保留在当前页面，可继续缩放查看。")
     elif moving:

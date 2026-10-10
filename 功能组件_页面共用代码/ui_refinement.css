@@ -172,3 +172,16 @@ html[data-yl-motion] .st-key-order_cargo { transition-property:background-color,
 .st-key-dispatch_compute button { min-height:52px; background:var(--brand)!important; border-color:var(--brand)!important; color:#f0f5ff!important; }
 .st-key-dispatch_compute button:hover:not(:disabled) { background:var(--brand-dark)!important; }
 .st-key-dispatch_compute button:disabled { background:#d6e0f1!important; border-color:#c7d4e8!important; color:#60718b!important; }
+
+/* 仓库模式与结果沿用同一蓝灰视觉层级。 */
+.st-key-warehouse_mode, .st-key-warehouse_result {
+  background: #e4ebf6; border-color: #c4d3eb !important;
+  border-radius: 18px; padding: 16px 20px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.st-key-warehouse_mode:focus-within { border-color: #1750df !important; }
+.st-key-warehouse_mode [data-testid="stRadio"] label { min-height: 44px; }
+.st-key-warehouse_result [data-testid="stMetric"] { background: #dde7f5; }
+@media(max-width:640px) {
+ .st-key-warehouse_mode, .st-key-warehouse_result { padding: 12px; }
+}

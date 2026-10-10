@@ -5,6 +5,8 @@ from 功能组件_页面共用代码 import delivery_calendar
 from 功能组件_页面共用代码.batch_dispatch import input_fingerprint
 from 功能组件_页面共用代码.batch_solver import assign_routes, route_schedule
 
+RELEASE_VERSION = "2026-10-10-dual-depot-v16"
+
 PRODUCT_COLORS = {"鲜面条": "#1750df", "姜蒜": "#bd5800"}
 
 
@@ -40,18 +42,24 @@ def plan_metrics(plan):
 
 
 def compare_strategies(orders, plan):
-    """同一订单快照、同一矩阵、同一车辆约束；只改变插入次序。"""
-    by_id = {o["订单编号"]: o for o in orders}
-    ordered = [by_id[oid] for oid in plan["矩阵标签"][1:]]
+    """同一实时订单与参数，比较单仓和指定双仓，不使用竞赛静态结果。"""
+    from 功能组件_页面共用代码.batch_solver import solve_batch
+    from 功能组件_页面共用代码.warehouses import label
     rows = []
-    for strategy, label in (("deadline", "时间窗优先"), ("weight", "重量优先")):
+    for count in (1, 2):
         try:
-            vehicles = assign_routes(ordered, plan["距离矩阵_m"], plan["参数"], plan["发车分钟"], strategy=strategy)
-            schedules = [route_schedule(v["sequence"], ordered, plan["距离矩阵_m"], v, plan["发车分钟"], plan["参数"]) for v in vehicles]
-            rows.append({"方案": label, "可行性": "全部订单可行", "车辆数": len(vehicles),
-                "里程_km": sum(s["km"] for s in schedules),
-                "固定及里程成本_元": sum(v["fixed"] + s["km"] * v["per_km"] for v, s in zip(vehicles, schedules))})
-        except ValueError:
-            rows.append({"方案": label, "可行性": "当前启发式未找到全量可行方案", "车辆数": None,
-                         "里程_km": None, "固定及里程成本_元": None})
+            candidate = plan if plan.get("仓库数量", 1) == count else solve_batch(orders, plan["参数"], plan["发车分钟"], warehouse_count=count)
+            costs = candidate["成本"]
+            rows.append({"方案": label(count), "可行性": "全部订单可行", "车辆数": len({r["车辆编号"] for r in candidate["线路"]}),
+                         "补货车数": sum(t["补货车数"] for t in candidate["补货"]),
+                         "配送里程_公里": sum(r["总里程_km"] for r in candidate["线路"]),
+                         "运输行驶费_元": costs["运输行驶费合计_元"], "未含新增场地费_元": costs["未含新增场地费_元"]})
+        except ValueError as exc:
+            rows.append({"方案": label(count), "可行性": str(exc), "车辆数": None, "补货车数": None,
+                         "配送里程_公里": None, "运输行驶费_元": None, "未含新增场地费_元": None})
+    if all(r["未含新增场地费_元"] is not None for r in rows):
+        baseline = rows[0]["未含新增场地费_元"]
+        for row in rows:
+            row["比单仓节省_元"] = baseline-row["未含新增场地费_元"]
+            row["节省比例_%"] = 100*row["比单仓节省_元"]/baseline if baseline else 0
     return {"输入指纹": input_fingerprint(orders), "参数": plan["参数"], "发车分钟": plan["发车分钟"], "结果": rows}

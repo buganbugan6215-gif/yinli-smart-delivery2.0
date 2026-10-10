@@ -1,12 +1,12 @@
 (() => {
   'use strict';
-  const version = '2026-10-03-audit-v13';
+  const version = '2026-10-10-warehouse-v16';
   if (!window.gsap || window.__ylMotion?.version === version) return;
   window.__ylMotion?.dispose();
   const g = window.gsap, root = document.documentElement;
   const seen = new WeakSet(), events = [], pending = new Set(), pressed = new Set();
   let frame = 0, observer, media, reduced = false;
-  const cards = '.home-feature,.home-flow-item,[class*="st-key-entry_"],.metric-card,.route-board,.note-panel,[class*="st-key-order_"]';
+  const cards = '.home-feature,.home-flow-item,[class*="st-key-entry_"],.st-key-warehouse_mode,.st-key-warehouse_result,.metric-card,.route-board,.note-panel,[class*="st-key-order_"]';
   const entrance = `${cards},.home-hero-copy,.home-journey,h1,.motion-focus,.motion-reveal,.home-reveal,.page-subtitle,[data-testid="stHeading"],[data-testid="stMetric"],[data-testid="stAlert"],.delivery-track-fill`;
   const controls = '[data-testid="stButton"] button,[data-testid="stPageLink-NavLink"], [data-testid="stDownloadButton"] button';
   const fine = () => matchMedia('(hover: hover) and (pointer: fine)').matches;

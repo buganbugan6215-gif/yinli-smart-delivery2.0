@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-03-dispatch-speed-v15"
+RELEASE_VERSION = "2026-10-10-dual-depot-v16"
 
 from datetime import date, datetime
 import json
@@ -53,10 +53,25 @@ def pricing_settings() -> dict[str, float]:
         "平均速度_kmh": 60.0, "早高峰速度_kmh": 30.0,
         "鲜面条单价_元每kg": 8.0, "生姜单价_元每kg": 10.0, "大蒜单价_元每kg": 12.0,
     }
+    from 功能组件_页面共用代码.warehouses import config
+    source = config()["第二版配送参数"]
+    legacy = dict(defaults)
+    for kind, vehicle in zip(("小型冷藏车", "大型冷藏车"), source["车队"]):
+        for suffix, key in (("数量", "数量"), ("载重_kg", "额定载重_kg"), ("固定成本_元", "固定成本_元每天"), ("单位运输成本_元每km", "运输成本_元每km"), ("续航_km", "续航_km")):
+            defaults[kind+suffix] = float(vehicle[key])
+    for key, field in (("配送制冷系数_元每小时", "运输中制冷_元每小时"), ("服务制冷系数_元每小时", "服务中制冷_元每小时"), ("早到惩罚_元每小时", "早到惩罚_元每小时"), ("晚到惩罚_元每小时", "迟到惩罚_元每小时"), ("运输货损率", "运输损耗率"), ("服务货损率", "服务损耗率"), ("鲜面条单价_元每kg", "鲜面价格_元每kg"), ("生姜单价_元每kg", "生姜价格_元每kg"), ("大蒜单价_元每kg", "大蒜价格_元每kg")):
+        defaults[key] = float(source["成本参数"][field])
+    defaults["满载续航增幅"] = source["运行参数"]["满载续航增幅"]
+    defaults["大蒜占比"] = source["姜蒜新增需求拆分"]["大蒜比例"]
     try:
         saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
         if saved.get("速度规则版本") != "2026-10-03-60-30":
             saved.update({"平均速度_kmh": 60.0, "早高峰速度_kmh": 30.0})
+        if saved.get("仓配成本版本") != "第二版20261010":
+            # 只迁移旧内置默认值；人工调整过的车辆/价格保留。
+            for key, value in defaults.items():
+                if key not in saved or saved[key] == legacy.get(key):
+                    saved[key] = value
         return {key: float(saved.get(key, value)) for key, value in defaults.items()}
     except (OSError, ValueError, TypeError):
         return defaults
@@ -64,7 +79,7 @@ def pricing_settings() -> dict[str, float]:
 
 def save_pricing_settings(values: dict[str, float]) -> None:
     ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps({**values, "速度规则版本": "2026-10-03-60-30"}, ensure_ascii=False, indent=2), encoding="utf-8")
+    SETTINGS_PATH.write_text(json.dumps({**values, "仓配成本版本": "第二版20261010", "速度规则版本": "2026-10-03-60-30"}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def minutes_from_midnight(value: str) -> int:
