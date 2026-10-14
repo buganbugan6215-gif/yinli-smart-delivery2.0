@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-cloud-read-v18"
+RELEASE_VERSION = "2026-10-14-page-speed-v19"
 
 from datetime import date, datetime
 import json

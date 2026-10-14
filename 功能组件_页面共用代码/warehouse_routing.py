@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-14-cloud-read-v18"
+RELEASE_VERSION = "2026-10-14-page-speed-v19"
 
 
 def transfer_info(matrix, rates):
