@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-page-speed-v19"
+RELEASE_VERSION = "2026-10-14-road-access-v20"
 
 import html
 import inspect

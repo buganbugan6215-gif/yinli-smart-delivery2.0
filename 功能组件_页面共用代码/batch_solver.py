@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-page-speed-v19"
+RELEASE_VERSION = "2026-10-14-road-access-v20"
 
 from functools import lru_cache
 import gzip
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import dijkstra
+from scipy.sparse.csgraph import connected_components, dijkstra
 from scipy.spatial import cKDTree
 
 DEPOT = [104.26104981303031, 30.851137170192068]
@@ -48,6 +48,16 @@ def load_graph():
     # 成都局部等距近似，仅用于最近节点索引；吸附距离用球面距离复核。
     scale = np.array([math.cos(math.radians(30.7)), 1.0])
     return graph, edge_map, coordinates, cKDTree(coordinates * scale), scale, data["source_sha256"]
+
+
+@lru_cache(maxsize=1)
+def routable_nodes():
+    """只向配送中心所在的有向强连通路网吸附，避开附近的孤立道路。"""
+    graph, _, coordinates, tree, scale, _ = load_graph()
+    _, components = connected_components(graph, directed=True, connection="strong")
+    depot_node = int(tree.query(np.asarray(DEPOT) * scale)[1])
+    nodes = np.flatnonzero(components == components[depot_node])
+    return nodes, cKDTree(coordinates[nodes] * scale)
 
 
 def haversine_m(a, b):
@@ -156,11 +166,14 @@ def solve_batch(orders, rates, departure=360, progress=None, warehouse_count=1):
     if any(not all(math.isfinite(v) for v in p) or not (-180 <= p[0] <= 180 and -90 <= p[1] <= 90) for p in points):
         raise ValueError("订单包含非法坐标。")
     graph, edge_map, coords, tree, scale, source_hash = load_graph()
-    _, nodes = tree.query(np.array(points)*scale)
+    available_nodes, available_tree = routable_nodes()
+    _, positions = available_tree.query(np.array(points)*scale)
+    nodes = available_nodes[positions]
     snaps = [haversine_m(p, coords[n]) for p, n in zip(points, nodes)]
-    if max(snaps) > 3000:
-        raise ValueError("存在距离已知货车路网超过 3 公里的收货点，请先核对地址。")
     labels = ["配送中心"] + ids + ["新增配送点"] * (warehouse_count-1)
+    for label, distance in zip(labels, snaps):
+        if distance > 3000:
+            raise ValueError(f"{label} 距离可往返的货车路网约 {distance/1000:.1f} 公里（上限 3 公里），请核对地址或补充路网。")
     matrix, predecessors = [], []
     for i, node in enumerate(nodes):
         lengths, pred = dijkstra(graph, directed=True, indices=int(node), return_predecessors=True)
