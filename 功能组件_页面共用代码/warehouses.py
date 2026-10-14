@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-RELEASE_VERSION = "2026-10-15-button-contrast-v25"
+RELEASE_VERSION = "2026-10-15-form-submit-v26"
 CONFIG = Path(__file__).resolve().parents[1] / "路网数据" / "仓配参数.json"
 
 

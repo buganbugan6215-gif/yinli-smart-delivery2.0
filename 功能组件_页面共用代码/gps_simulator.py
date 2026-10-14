@@ -1,7 +1,7 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-button-contrast-v25"
+RELEASE_VERSION = "2026-10-15-form-submit-v26"
 
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt

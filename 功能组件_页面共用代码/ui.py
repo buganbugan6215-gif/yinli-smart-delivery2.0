@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-button-contrast-v25"
+RELEASE_VERSION = "2026-10-15-form-submit-v26"
 
 import html
 import inspect
@@ -19,11 +19,10 @@ def inject_css() -> None:
         <style>
         [data-testid="stStatusWidget"], [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"], [data-testid="stDecoration"], #MainMenu { display:none!important; }
         [data-testid="stDownloadButton"] button p, button[kind="primary"] p { color:inherit!important; }
-        [data-testid="stFormSubmitButton"] button[kind="primary"],
-        [data-testid="stFormSubmitButton"] button[kind="primary"]:hover { background:var(--brand)!important; border-color:var(--brand)!important; color:#fff!important; }
-        [data-testid="stFormSubmitButton"] button[kind="primary"] p,
-        [data-testid="stFormSubmitButton"] button[kind="primary"] span { color:#fff!important; }
-        [data-testid="stFormSubmitButton"] button[kind="primary"]:hover { background:var(--brand-dark)!important; border-color:var(--brand-dark)!important; }
+        [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] { background:var(--brand)!important; border-color:var(--brand)!important; color:#fff!important; }
+        [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] p,
+        [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] span { color:#fff!important; }
+        [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"]:hover { background:var(--brand-dark)!important; border-color:var(--brand-dark)!important; }
         :root { --ink:#1d2a3a; --ink-soft:#415166; --paper:#eef2f8; --surface:#e7edf7; --surface-blue:#e1e9f5; --line:#dfe7f1; --muted:#53647a; --brand:#1750df; --brand-dark:#103c9e; --accent:#ff8133; --accent-soft:#fff0e6; --success:#18794e; --success-soft:#e7f6ee; }
         .stApp { background:var(--paper); color:var(--ink); font-family:'Microsoft YaHei UI','Microsoft YaHei','Segoe UI',sans-serif; }
         [data-testid='stHeader'] { height:0!important; min-height:0!important; max-height:0!important; padding:0!important; background:transparent!important; border:0!important; box-shadow:none!important; pointer-events:none; overflow:visible!important; }

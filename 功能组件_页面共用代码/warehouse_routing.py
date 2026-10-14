@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-15-button-contrast-v25"
+RELEASE_VERSION = "2026-10-15-form-submit-v26"
 
 
 def transfer_info(matrix, rates):

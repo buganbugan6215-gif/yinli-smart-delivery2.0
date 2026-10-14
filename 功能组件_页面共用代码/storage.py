@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-15-button-contrast-v25"
+RELEASE_VERSION = "2026-10-15-form-submit-v26"
 
 
 def database_url():
