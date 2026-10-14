@@ -51,6 +51,20 @@ def test_eta_confirm_delay_and_access(isolated):
         dialog.customer_reply(order["订单编号"],"确认",version=updated["版本"],now=datetime(2026,10,15,12))
 
 
+def test_demo_shows_planned_narrow_window_without_shifting_delivery_day(isolated):
+    order=sample()
+    order.update({"演示发车": True, "状态": "配送途中", "发车时间": "2026-10-14T22:00:00+08:00"})
+    state.save_order_record(order)
+    window=dialog.arrival_window(order,datetime(2026,10,14,22))
+    assert window is not None
+    assert window["标签"] == "10月15日 08:30—08:50"
+    assert "演示" in window["来源"]
+    assert not window["临近"]
+    state.verify_customer_order(order["订单编号"],"1234")
+    with pytest.raises(ValueError,match="演示发车"):
+        dialog.customer_reply(order["订单编号"],"确认",version=window["版本"],now=datetime(2026,10,14,22))
+
+
 def test_request_validation_and_staff_reply(isolated):
     order=sample();state.save_order_record(order)
     state.verify_customer_order(order["订单编号"],"1234")

@@ -4,7 +4,7 @@ import streamlit as st
 from 功能组件_页面共用代码 import customer_dialogue as dialogue
 from 功能组件_页面共用代码 import order_state as state
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v22"
+RELEASE_VERSION = "2026-10-14-demo-eta-v23"
 
 
 def customer_panel(order):
@@ -13,28 +13,29 @@ def customer_panel(order):
         st.markdown("### 送达时间 · 与您确认")
         st.caption(f"您的可收货时间：{order.get('最早到达', '—')}—{order.get('最晚到达', '—')}；平台预报不会自动覆盖原预约。")
         window = dialogue.arrival_window(order)
-        if order.get("演示发车"):
-            st.info("当前为演示发车，地图中的车辆位置为加速仿真；不作为真实送达时间承诺。")
-        elif order.get("状态") in dialogue.DONE:
+        if order.get("状态") in dialogue.DONE:
             st.success("货物已送达，收货时间沟通已结束。")
             if order.get("实际到达时间"):
                 st.caption("工作人员登记到达时间："+order["实际到达时间"][:19].replace("T", " "))
         elif window:
-            st.metric("预计送达范围", window["标签"])
-            st.caption(window["来源"]+"；范围为计划估计，非保证到达时刻。")
-            if window["已过期"]:
+            demo = bool(order.get("演示发车"))
+            st.metric("计划送达范围（演示）" if demo else "预计送达范围", window["标签"])
+            st.caption(window["来源"]+"；此范围为计划估计，非保证到达时刻。")
+            if demo:
+                st.info("地图车辆正在加速仿真；上方时间仍对应原定配送日，演示进度不改变实际送达预报。")
+            elif window["已过期"]:
                 st.warning("原预报时间已过，尚未登记送达；请等待工作人员更新或提交改约需求。")
             elif window["临近"]:
                 st.info("预计即将送达，请留意联系电话并准备收货。")
-            if window["超出预约"]:
+            if window["超出预约"] and not demo:
                 st.warning("当前预报超出您的原预约范围，请确认是否可以收货，或申请改约。")
             if window["已确认"]:
                 st.success("您已确认此送达范围；预报变化后需要重新确认。")
             elif order.get("收货确认"):
                 st.info("送达预报已更新，请重新确认是否方便收货。")
-            if order.get("到达预报"):
+            if order.get("到达预报") and not demo:
                 st.write("更新说明："+order["到达预报"]["说明"])
-            if st.button("此时间可以收货", type="primary", disabled=window["已确认"] or window["已过期"] or order.get("改约申请", {}).get("状态")=="待处理", key="agree_"+oid):
+            if not demo and st.button("此时间可以收货", type="primary", disabled=window["已确认"] or window["已过期"] or order.get("改约申请", {}).get("状态")=="待处理", key="agree_"+oid):
                 try:
                     dialogue.customer_reply(oid, "确认", version=window["版本"])
                     st.rerun()

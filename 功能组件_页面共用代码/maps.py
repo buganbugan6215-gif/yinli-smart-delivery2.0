@@ -8,7 +8,7 @@ import folium
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v22"
+RELEASE_VERSION = "2026-10-14-demo-eta-v23"
 
 
 ROOT = Path(__file__).resolve().parents[1]

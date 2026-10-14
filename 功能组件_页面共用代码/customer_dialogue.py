@@ -8,30 +8,33 @@ from uuid import uuid4
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v22"
+RELEASE_VERSION = "2026-10-14-demo-eta-v23"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
 def arrival_window(order, now=None):
-    if order.get("状态") in DONE or order.get("演示发车") or not order.get("线路编号"):
+    if order.get("状态") in DONE or not order.get("线路编号"):
         return None
+    demo = bool(order.get("演示发车"))
     now = as_beijing(now)
     day = as_beijing(datetime.fromisoformat(order["期望送达日期"]))
     eta = day + timedelta(minutes=float(order.get("计划到达_分钟", 0)))
     source = "已确认路线计划（含前序站点服务和等待）"
-    if order.get("发车时间"):
+    if order.get("发车时间") and not demo:
         actual_departure = as_beijing(datetime.fromisoformat(order["发车时间"]))
         planned_departure = day + timedelta(minutes=float(order.get("计划发车_分钟", 360)))
         eta += actual_departure - planned_departure
         source = "按实际发车时间修正的计划预测，尚未接入实时路况"
-    report = order.get("到达预报")
+    report = None if demo else order.get("到达预报")
+    if demo:
+        source = "已确认线路的原定配送日计划；演示车辆位置不参与预计时间计算"
     if report:
         start, end = (as_beijing(datetime.fromisoformat(report[k])) for k in ("开始", "结束"))
         source = "工作人员更新的送达预报"
     else:
         start, end = eta - timedelta(minutes=10), eta + timedelta(minutes=10)
         # 备货阶段取原预约内的交集；途中延误不强行裁回原时间窗。
-        if not order.get("发车时间"):
+        if not order.get("发车时间") or demo:
             lower = day + timedelta(minutes=float(order.get("期望窗开始_分钟", 0)))
             upper = day + timedelta(minutes=float(order.get("期望窗结束_分钟", 1439)))
             if lower <= eta <= upper:
@@ -42,7 +45,7 @@ def arrival_window(order, now=None):
             "标签": f"{start:%m月%d日 %H:%M}—{end:%H:%M}",
             "已确认": confirmed.get("版本") == token,
             "已过期": now > end,
-            "临近": order.get("状态") == "配送途中" and start - timedelta(minutes=30) <= now <= end,
+            "临近": not demo and order.get("状态") == "配送途中" and start - timedelta(minutes=30) <= now <= end,
             "超出预约": start < day + timedelta(minutes=float(order.get("期望窗开始_分钟", 0))) or end > day + timedelta(minutes=float(order.get("期望窗结束_分钟", 1439)))}
 
 
@@ -70,6 +73,8 @@ def customer_reply(oid, action, *, version=None, start=None, end=None, note="", 
         if order.get("状态") in DONE:
             raise ValueError("已送达订单不能再调整收货时间。")
         if action == "确认":
+            if order.get("演示发车"):
+                raise ValueError("演示发车仅展示原定配送日的计划时间，不能作为真实送达预报确认。")
             window = arrival_window(order, now)
             if not window or window["版本"] != version or window["已过期"]:
                 raise ValueError("送达预报已更新或过期，请刷新后重新确认。")
