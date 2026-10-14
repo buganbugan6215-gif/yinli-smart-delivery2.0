@@ -134,7 +134,7 @@ def test_customer_dual_submit_and_staff_live_pages(database, monkeypatch):
     state.save_order_record({**existing, "订单编号": "NEW-TEST"})
     app.run()
     assert any("原对比失效" in w.value for w in app.warning)
-    assert len(STAFF_PAGES) == 5 and len(set(p for p, _ in STAFF_PAGES)) == 5
+    assert len(STAFF_PAGES) == 7 and len(set(p for p, _ in STAFF_PAGES)) == 7
     for path, _ in STAFF_PAGES:
         assert "load_site_data" not in (ROOT / path).read_text(encoding="utf-8")
 

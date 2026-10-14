@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-demo-eta-v23"
+RELEASE_VERSION = "2026-10-14-d6-admin-v24"
 
 import copy
 import hashlib
@@ -182,9 +182,11 @@ def validate_result(plan, orders):
     if any(len(kinds) > 1 for kinds in vehicle_products.values()):
         raise ValueError("同一车辆不能承担本批次两种品类，请分别安排车辆。")
     if "仓库" in plan:
-        from 功能组件_页面共用代码.warehouses import depots
-        if plan["仓库"] != depots(count):
-            raise ValueError("仓库点位与指定的原仓、新增点不一致。")
+        # 已确认的历史批次保留发布时的仓库快照；新方案在 confirm_batch 中另校验当前配置。
+        if (len(plan["仓库"]) != count or plan.get("仓配配置", {}).get("仓库") != plan["仓库"]
+                or plan["仓库"][0].get("编号") != "D0"
+                or (count == 2 and plan["仓库"][1].get("编号") not in {"D5", "D6"})):
+            raise ValueError("仓库点位与方案发布时的仓配配置不一致。")
         allowed = {d["编号"]: d for d in plan["仓库"]}
         vehicle_depots = {}
         for route in routes:

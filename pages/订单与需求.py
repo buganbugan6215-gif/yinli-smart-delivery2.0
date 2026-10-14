@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 from 功能组件_页面共用代码.ui import display_table
 from 功能组件_页面共用代码.batch_dispatch import day_orders, calculation_groups
-from 功能组件_页面共用代码.batch_dispatch import clear_all_order_data
 from 功能组件_页面共用代码.live_operations import select_delivery_day, order_summary
 from 功能组件_页面共用代码.ui import inject_css, render_sidebar, require_staff_access, page_title
 
@@ -15,7 +14,7 @@ require_staff_access()
 page_title("订单台账", "查询客户提交、配送子单与异常反馈；调度操作请进入统一调度")
 from 功能组件_页面共用代码.order_state import init_orders
 from 功能组件_页面共用代码.order_archive import recent_orders
-from 功能组件_页面共用代码.dialogue_ui import staff_panel, storage_panel
+from 功能组件_页面共用代码.dialogue_ui import staff_panel
 history_mode = st.radio("查询范围", ["按配送日", "近 30 天历史订单"], horizontal=True)
 day = select_delivery_day(st, historical=True) if history_mode == "按配送日" else None
 query = st.text_input("搜索总单号、子单号或客户名称").strip()
@@ -60,16 +59,3 @@ def render_orders():
             st.caption("当前筛选没有异常反馈。")
 
 render_orders()
-storage_panel()
-with st.expander("数据维护 · 清空全部订单"):
-    st.warning("此操作会永久删除共享订单库中的全部订单、调度草案和已确认线路，并清理本机订单目录下的 Excel 订单文件。所有客户端都将无法再查询这些订单。")
-    phrase = st.text_input("输入“清空全部订单”以确认", key="clear_orders_phrase")
-    if st.button("一键清空所有订单", disabled=phrase != "清空全部订单", key="clear_all_orders"):
-        try:
-            count = clear_all_order_data()
-            st.session_state["cleared_orders_count"] = count
-            st.rerun()
-        except (ValueError, RuntimeError) as exc:
-            st.error(str(exc))
-if "cleared_orders_count" in st.session_state:
-    st.success(f"已清空 {st.session_state.pop('cleared_orders_count')} 个订单及相关调度路线。")

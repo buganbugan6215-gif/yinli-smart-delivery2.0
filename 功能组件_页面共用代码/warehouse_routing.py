@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-14-demo-eta-v23"
+RELEASE_VERSION = "2026-10-14-d6-admin-v24"
 
 
 def transfer_info(matrix, rates):

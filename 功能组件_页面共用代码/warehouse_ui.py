@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import warehouses
 from 功能组件_页面共用代码.batch_dispatch import get_batch, get_draft, day_orders, input_fingerprint, save_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 
-RELEASE_VERSION = "2026-10-14-demo-eta-v23"
+RELEASE_VERSION = "2026-10-14-d6-admin-v24"
 
 
 def selector(day, confirmed=None, selected_count=None):
@@ -25,7 +25,7 @@ def selector(day, confirmed=None, selected_count=None):
     with st.container(key="warehouse_mode", border=True):
         chosen = st.radio("配送仓库", [1, 2], format_func=warehouses.label,
                           horizontal=True, disabled=bool(confirmed), key=widget_key, on_change=change)
-        st.caption("双仓仅使用第二版入选的新增配送点；共享配送车队，按品类分别补货。" if not confirmed else "已确认批次按发布时仓库模式执行。")
+        st.caption("双仓使用指定的 D6 新增配送点；共享配送车队，按品类分别补货。" if not confirmed else "已确认批次按发布时仓库点位执行。")
     event = st.session_state.pop(flag, False)
     if isinstance(event, str):
         st.error(event)

@@ -205,6 +205,8 @@ def test_customer_and_staff_ui(isolated, monkeypatch):
     next(b for b in staff.button if b.label=="保持原预约并回复客户").click().run()
     assert not staff.exception
     assert state.load_order_records()[0]["改约申请"]["状态"]=="未调整，已回复"
+    staff.switch_page("pages/订单备份与迁移.py").run()
+    assert not staff.exception
     next(b for b in staff.button if b.label=="生成完整业务备份").click().run()
     assert not staff.exception
     assert staff.get("download_button")

@@ -17,7 +17,7 @@ def database(tmp_path, monkeypatch):
 
 def orders():
     result = []
-    for i, (product, xy) in enumerate([("鲜面条", (104.26, 30.85)), ("鲜面条", (104.1108969, 30.6648515)), ("姜蒜", (104.112, 30.666))]):
+    for i, (product, xy) in enumerate([("鲜面条", (104.26, 30.85)), ("鲜面条", (104.0616461, 30.6608656)), ("姜蒜", (104.062, 30.661))]):
         result.append({"订单编号": f"DUAL-{i}", "客户名称": "虚拟测试", "品类": product,
                        "经度": xy[0], "纬度": xy[1], "配送重量_kg": 200,
                        "期望送达日期": "2020-01-02", "期望窗开始_分钟": 480,
@@ -37,21 +37,21 @@ def plans():
 
 def test_exact_selected_depot_and_source_distances(plans):
     single, dual = plans
-    assert [d["编号"] for d in dual["仓库"]] == ["D0", "D5"]
-    assert dual["仓库"][1]["坐标"] == [104.1108969, 30.6648515]
-    assert dual["距离矩阵_m"][0][-1]/1000 == pytest.approx(29.75546807942378, abs=.001)
-    assert dual["距离矩阵_m"][-1][0]/1000 == pytest.approx(29.843910271742466, abs=.001)
+    assert [d["编号"] for d in dual["仓库"]] == ["D0", "D6"]
+    assert dual["仓库"][1]["坐标"] == [104.0616461, 30.6608656]
+    assert dual["距离矩阵_m"][0][-1]/1000 == pytest.approx(35.17166409121595, abs=.001)
+    assert dual["距离矩阵_m"][-1][0]/1000 == pytest.approx(35.25939792070599, abs=.001)
     assert len(single["距离矩阵_m"]) == 4 and len(dual["距离矩阵_m"]) == 5
     for plan in plans:
         dispatch.validate_result(plan, orders())
         assert len({a["订单编号"] for a in plan["订单结果"]}) == 3
-    assert {a["仓库编号"] for a in dual["订单结果"]} == {"D0", "D5"}
+    assert {a["仓库编号"] for a in dual["订单结果"]} == {"D0", "D6"}
 
 
 def test_costs_close_and_unknown_site_not_zero(plans):
     single, dual = plans
     c = dual["成本"]
-    assert c["补货运输费_元"] == pytest.approx(476.7950268, abs=.001)
+    assert c["补货运输费_元"] == pytest.approx(2 * 4 * (35.17166409121595 + 35.25939792070599), abs=.01)
     assert c["补货固定费_元"] == 800
     assert c["新增场地费_元"] is None and c["含新增场地总费用_元"] is None
     assert c["配送车辆固定费_元"] == single["成本"]["配送车辆固定费_元"] == 2400
@@ -74,7 +74,7 @@ def test_mode_change_invalidates_pending_but_preserves_orders(database, plans):
     dispatch.confirm_batch(plans[1], datetime(2020, 1, 2, 6))
     with pytest.raises(ValueError, match="锁定"):
         warehouses.save_selection("2020-01-02", 1)
-    assert {o["仓库编号"] for o in state.load_order_records()} == {"D0", "D5"}
+    assert {o["仓库编号"] for o in state.load_order_records()} == {"D0", "D6"}
     assert len(state.load_order_records()) == 3
 
 
@@ -89,7 +89,7 @@ def test_replenishment_capacity_and_product_separation(plans):
 def test_delivery_waits_for_replenishment_and_shared_fleet(plans):
     plan = solve_batch(orders(), state.pricing_settings(), departure=0, warehouse_count=2)
     ready = plan["补货"][0]["就绪分钟"]
-    assert all(r["发车时间_分钟"] >= ready for r in plan["线路"] if r["仓库编号"] == "D5")
+    assert all(r["发车时间_分钟"] >= ready for r in plan["线路"] if r["仓库编号"] == "D6")
     limited = {**state.pricing_settings(), "小型冷藏车数量": 1, "大型冷藏车数量": 0}
     with pytest.raises(ValueError, match="全部订单"):
         solve_batch(orders(), limited, warehouse_count=2)
@@ -125,4 +125,4 @@ def test_map_contains_only_two_warehouse_markers_and_expanded_bounds(plans):
     m = plan_map(plans[1])
     markers = [v for v in m._children.values() if isinstance(v, folium.Marker) and not isinstance(v, folium.CircleMarker)]
     assert len(markers) == 2
-    assert {tuple(v.location) for v in markers} == {(30.851137170192068, 104.26104981303031), (30.6648515, 104.1108969)}
+    assert {tuple(v.location) for v in markers} == {(30.851137170192068, 104.26104981303031), (30.6608656, 104.0616461)}

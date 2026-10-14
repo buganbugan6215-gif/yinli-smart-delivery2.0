@@ -4,7 +4,7 @@ import streamlit as st
 from 功能组件_页面共用代码 import customer_dialogue as dialogue
 from 功能组件_页面共用代码 import order_state as state
 
-RELEASE_VERSION = "2026-10-14-demo-eta-v23"
+RELEASE_VERSION = "2026-10-14-d6-admin-v24"
 
 
 def customer_panel(order):
@@ -121,7 +121,7 @@ def staff_panel(orders):
 def storage_panel():
     from 功能组件_页面共用代码.storage import database_url
     from 功能组件_页面共用代码.order_archive import export_backup, restore_backup
-    with st.expander("订单保存与迁移"):
+    with st.container(border=True):
         if database_url():
             # 实际探测成功才显示已连接。
             with state._db_connection() as conn:

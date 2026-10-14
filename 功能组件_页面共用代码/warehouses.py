@@ -1,8 +1,8 @@
-"""仅接入第二版正式结果的原仓与 D5，不导入候选池或历史客户。"""
+"""仅接入原仓与用户指定的 D6，不导入其他候选点或历史客户。"""
 import json
 from pathlib import Path
 
-RELEASE_VERSION = "2026-10-14-demo-eta-v23"
+RELEASE_VERSION = "2026-10-14-d6-admin-v24"
 CONFIG = Path(__file__).resolve().parents[1] / "路网数据" / "仓配参数.json"
 
 
