@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-10-dual-depot-v16"
+RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
 
 from datetime import date, datetime
 import json
@@ -64,7 +64,14 @@ def pricing_settings() -> dict[str, float]:
     defaults["满载续航增幅"] = source["运行参数"]["满载续航增幅"]
     defaults["大蒜占比"] = source["姜蒜新增需求拆分"]["大蒜比例"]
     try:
-        saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        from 功能组件_页面共用代码.storage import database_url
+        if database_url():
+            with _db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+                row = conn.execute("SELECT payload FROM app_settings WHERE name=?", ("pricing",)).fetchone()
+            saved = json.loads(row[0]) if row else {}
+        else:
+            saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
         if saved.get("速度规则版本") != "2026-10-03-60-30":
             saved.update({"平均速度_kmh": 60.0, "早高峰速度_kmh": 30.0})
         if saved.get("仓配成本版本") != "第二版20261010":
@@ -78,8 +85,15 @@ def pricing_settings() -> dict[str, float]:
 
 
 def save_pricing_settings(values: dict[str, float]) -> None:
-    ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps({**values, "仓配成本版本": "第二版20261010", "速度规则版本": "2026-10-03-60-30"}, ensure_ascii=False, indent=2), encoding="utf-8")
+    from 功能组件_页面共用代码.storage import database_url
+    payload = json.dumps({**values, "仓配成本版本": "第二版20261010", "速度规则版本": "2026-10-03-60-30"}, ensure_ascii=False, indent=2)
+    if database_url():
+        with _db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            conn.execute("INSERT OR REPLACE INTO app_settings VALUES (?, ?)", ("pricing", payload))
+    else:
+        ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        SETTINGS_PATH.write_text(payload, encoding="utf-8")
 
 
 def minutes_from_midnight(value: str) -> int:
@@ -192,11 +206,8 @@ def geocode_address(address: str) -> tuple[float, float, str, str] | None:
 
 
 def _db_connection() -> sqlite3.Connection:
-    ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(ORDER_DB_PATH, timeout=10)
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
-    return connection
+    from 功能组件_页面共用代码.storage import connect
+    return connect(ORDER_DB_PATH)
 
 
 def save_order_record(order: dict[str, Any]) -> None:
@@ -209,12 +220,9 @@ def save_order_record(order: dict[str, Any]) -> None:
 
 
 def load_order_records() -> list[dict[str, Any]]:
-    try:
-        with _db_connection() as connection:
-            rows = connection.execute("SELECT payload FROM orders ORDER BY updated_at DESC").fetchall()
-        return [json.loads(row[0]) for row in rows]
-    except Exception:
-        return []
+    with _db_connection() as connection:
+        rows = connection.execute("SELECT payload FROM orders ORDER BY updated_at DESC").fetchall()
+    return [json.loads(row[0]) for row in rows]
 
 
 def _route_geojson(longitude: float | None, latitude: float | None) -> dict[str, Any] | None:
@@ -311,11 +319,15 @@ def _build_order(payload: dict[str, Any], now: datetime) -> dict[str, Any]:
         raise ValueError("鲜面条与姜蒜必须拆成不同配送子单。")
     if product == "姜蒜" and float(payload.get("鲜面需求量_kg", 0)) > 0:
         raise ValueError("鲜面条与姜蒜必须拆成不同配送子单。")
+    preferred = payload.get("偏好到达时间")
+    if preferred and not minutes_from_midnight(earliest) <= minutes_from_midnight(preferred) <= minutes_from_midnight(latest):
+        raise ValueError("偏好时间应在可收货时间段内。")
+    flexibility = 30 if payload.get("可协商调整", False) else 0
     enriched = {
         "期望窗开始_分钟": minutes_from_midnight(earliest),
         "期望窗结束_分钟": minutes_from_midnight(latest),
-        "允许窗开始_分钟": max(0, minutes_from_midnight(earliest) - 30),
-        "允许窗结束_分钟": min(1439, minutes_from_midnight(latest) + 30),
+        "允许窗开始_分钟": max(0, minutes_from_midnight(earliest) - flexibility),
+        "允许窗结束_分钟": min(1439, minutes_from_midnight(latest) + flexibility),
         "服务时间_分钟": service_minutes(product, noodle, ginger, garlic),
     }
     if longitude is None or latitude is None or not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
@@ -390,6 +402,7 @@ def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = Fals
             raise ValueError("订单不存在。")
         order = json.loads(row[0])
         if receipt:
+            order["签收时间"] = beijing_now().isoformat()
             if order["状态"] != "已送达":
                 raise ValueError("仅已送达订单可以签收，请刷新状态。")
             order.update({"状态": "签收完成", "状态序号": 5, "签收结果": "正常签收"})

@@ -64,20 +64,18 @@ else:
     st.info("本配送日尚未统一确认，确认后将显示您的线路编号和车辆。")
 
 
-@st.fragment(run_every="10s")
+from 功能组件_页面共用代码.dialogue_ui import customer_panel
+
+@st.fragment(run_every="15s" if order.get("状态") not in {"已送达", "签收完成"} else None)
 def render_live_eta() -> None:
-    current = customer_order(str(order["订单编号"])) or order
-    snapshot = get_tracking_snapshot(current, demo_factor=60.0)
-    if not snapshot:
+    current = customer_order(str(order["订单编号"]))
+    if not current:
+        st.warning("订单当前不可访问，请重新核验。")
         return
-    st.markdown("### 车辆定位仿真与预计到达时间")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("路程完成度", f"{snapshot['progress']:.0%}")
-    c2.metric("剩余里程", f"{snapshot['remaining_km']:.2f} 公里")
-    c3.metric("预计到达", snapshot["eta"].strftime("%H:%M"))
-    st.progress(snapshot["progress"])
-    st.info(f"预计到达区间：{snapshot['eta_earliest']:%H:%M} - {snapshot['eta_latest']:%H:%M}")
-    st.caption("位置与预计到达时间 根据已确认的 道路最短路径、发车时间和仿真速度计算，不是车载定位实时数据；客户原预约时间窗不会被修改。")
+    if current.get("状态") != order.get("状态"):
+        st.rerun()
+    customer_panel(current)
+
 
 st.markdown(f"""
 <div class="tracking-head motion-focus">
@@ -102,7 +100,7 @@ with left:
       <div><span>最晚送达</span><b>{order['最晚送达']}</b></div>
       <div><span>预估费用</span><b>¥ {float(order.get('预估费用_元', 0)):,.2f}</b></div>
       <div><span>服务时间</span><b>{int(order.get('服务时间_分钟', 0))} 分钟</b></div>
-      <div><span>允许送达窗口</span><b>期望时间前后各放宽 30 分钟</b></div>
+      <div><span>允许送达窗口</span><b>{'可联系协商；未同意前按原预约执行' if order.get('可协商调整') else '按客户约定时间执行'}</b></div>
       <div><span>配送安排</span><b>{'等待工作人员确认后展示' if index < 2 else '方案已确认，可查看配送地图'}</b></div>
     </div>
     """, unsafe_allow_html=True)

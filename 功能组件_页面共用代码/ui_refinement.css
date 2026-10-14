@@ -185,3 +185,7 @@ html[data-yl-motion] .st-key-order_cargo { transition-property:background-color,
 @media(max-width:640px) {
  .st-key-warehouse_mode, .st-key-warehouse_result { padding: 12px; }
 }
+
+/* 送达协商卡片与预约表单共用蓝灰背景，沿用 GSAP 入场和按钮反馈。 */
+[class*="st-key-order_arrival_"] { background:#e4ebf6; border:1px solid #c4d3eb!important; border-radius:18px; padding:20px; }
+[class*="st-key-order_arrival_"] [data-testid="stMetricValue"] { font-size:clamp(1.2rem,2.4vw,1.8rem); white-space:normal; }

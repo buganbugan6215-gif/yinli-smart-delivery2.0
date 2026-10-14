@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-10-dual-depot-v16"
+RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
 
 
 def transfer_info(matrix, rates):

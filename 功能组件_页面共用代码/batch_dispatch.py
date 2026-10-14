@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-10-dual-depot-v16"
+RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
 
 import copy
 import hashlib
@@ -190,6 +190,8 @@ def confirm_batch(plan, now=None):
         assignment = {a["订单编号"]: a for a in plan["订单结果"]}
         for o in orders:
             o.update(assignment[o["订单编号"]])
+            if o.get("改约申请", {}).get("状态") == "已采纳，待线路确认":
+                o["改约申请"].update({"状态": "已采纳，线路已确认", "回复": "新线路已确认，请核对新的预计送达范围并确认收货。"})
             o["行驶参数"] = {key: plan["参数"][key] for key in ("平均速度_kmh", "早高峰速度_kmh")}
             o.update({"状态": "仓库备货中", "状态序号": 2, "数据模式": "整日批次 Dijkstra 统一调度", "批次编号": day})
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(o, ensure_ascii=False), result["确认时间"], o["订单编号"]))
@@ -223,6 +225,8 @@ def advance_batch(day, target, now=None):
             timestamp = (now or beijing_now()).isoformat()
             if target == "配送途中":
                 order["发车时间"] = timestamp
+            if target == "已送达":
+                order["实际到达时间"] = timestamp
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(order, ensure_ascii=False), timestamp, order["订单编号"]))
 
 
