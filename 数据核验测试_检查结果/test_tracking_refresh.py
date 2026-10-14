@@ -3,6 +3,7 @@ import copy
 import streamlit as st
 import streamlit_folium
 from streamlit.testing.v1 import AppTest
+from 功能组件_页面共用代码.delivery_calendar import beijing_now
 
 from 功能组件_页面共用代码 import maps, order_state as state
 from test_batch_ui import ROOT
@@ -12,6 +13,7 @@ from test_gps_simulator import _order
 def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     order, _ = _order()
     order.update({"订单编号": "MAP-TEST", "线路编号": "R1", "品类": "鲜面条", "期望送达日期": "2026-09-24"})
+    order["发车时间"] = beijing_now().isoformat()
     monkeypatch.setattr(state, "init_orders", lambda *a, **k: [copy.deepcopy(order)])
     monkeypatch.setattr(state, "customer_order", lambda *a: copy.deepcopy(order))
     builds, components, intervals = [], [], []

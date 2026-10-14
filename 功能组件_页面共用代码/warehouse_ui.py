@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import warehouses
 from 功能组件_页面共用代码.batch_dispatch import get_batch, get_draft, day_orders, input_fingerprint, save_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 
 def selector(day, confirmed=None, selected_count=None):
@@ -83,9 +83,10 @@ def render_cost(plan):
 def render_map(plan, key="warehouse-map"):
     from 功能组件_页面共用代码.maps import plan_map
     from streamlit_folium import st_folium
-    fmap = plan_map(plan)
+    detailed = st.toggle("显示细支道路（加载更多地图数据）", key=key+"-roads")
+    fmap = plan_map(plan, detailed=detailed)
     st.caption("蓝色实线：鲜面条 · 橙色虚线：姜蒜 · 灰蓝虚线：仓间补货")
-    st_folium(fmap, use_container_width=True, height=560, returned_objects=[], key=key)
+    st_folium(fmap, use_container_width=True, height=560, returned_objects=[], key=key+str(detailed))
 
 
 def route_table(plan):

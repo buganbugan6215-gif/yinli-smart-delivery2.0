@@ -8,12 +8,12 @@ from uuid import uuid4
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
-DONE = {"已送达", "签收完成"}
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+DONE = {"已送达", "签收完成", "已取消"}
 
 
 def arrival_window(order, now=None):
-    if order.get("状态") in DONE or not order.get("线路编号"):
+    if order.get("状态") in DONE or order.get("演示发车") or not order.get("线路编号"):
         return None
     now = as_beijing(now)
     day = as_beijing(datetime.fromisoformat(order["期望送达日期"]))
@@ -167,7 +167,7 @@ def approve_reschedule(oid, request_id):
         batch._tables(conn)
         conn.execute("BEGIN IMMEDIATE")
         current = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
-        current = sorted([o for o in current if o.get("期望送达日期") == day], key=lambda o:o["订单编号"])
+        current = sorted([o for o in current if o.get("期望送达日期") == day and o.get("状态") != state.CANCELLED_STATUS], key=lambda o:o["订单编号"])
         if json.dumps(current, sort_keys=True, ensure_ascii=False) != before:
             raise ValueError("计算期间订单或状态变化，请刷新重试。")
         conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")

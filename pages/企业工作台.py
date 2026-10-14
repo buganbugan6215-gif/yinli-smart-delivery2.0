@@ -44,7 +44,7 @@ with order_tab:
     stats = st.columns(3)
     stats[0].metric("待计算订单", len(pending))
     stats[1].metric("已计算订单", len(calculated))
-    stats[2].metric("批次状态", "已统一确认" if batch else "已截止，待调度" if closed else "正在收单")
+    stats[2].metric("批次状态", "已统一确认" if batch else "已截止，待调度" if closed else "收单中，可提前确认")
     if not orders:
         st.info("本配送日暂无订单，收到订单后可计算整批线路。")
         with st.container(key="dispatch_compute"):
@@ -54,7 +54,7 @@ with order_tab:
         saved_minute = int(plan["发车分钟"]) if plan else 360
         departure = st.time_input("计划发车时间", time((saved_minute // 60) % 24, saved_minute % 60))
         if not closed:
-            st.info("可立即计算当前订单；20:00 截止后再统一确认全部线路。")
+            st.info("可提前确认当前全部订单；确认后该配送日立即停止接单，新订单需选择更晚日期。")
         if pending:
             with st.expander(f"待计算订单 · {len(pending)} 单", expanded=True):
                 display_table(pd.DataFrame(pending)[[c for c in ["订单编号", "客户名称", "品类", "配送重量_kg"] if c in pending[0]]], hide_index=True, use_container_width=True)
@@ -98,9 +98,15 @@ with order_tab:
             with st.expander("核对全部订单分配和最短距离矩阵"):
                 display_table(pd.DataFrame([{k:v for k,v in r.items() if k != "路线GeoJSON"} for r in plan["订单结果"]]), hide_index=True, use_container_width=True)
                 display_table(pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"]), use_container_width=True)
-            if st.button("统一确认全部线路并开始备货", type="primary", disabled=stale or not closed, use_container_width=True):
+            if st.button("统一确认全部线路并开始备货", type="primary", disabled=stale, use_container_width=True):
                 try:
                     confirm_batch(plan)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+            if st.button("确认并立即开始配送（演示）", disabled=stale, use_container_width=True):
+                try:
+                    confirm_batch(plan, depart_immediately=True)
                     st.rerun()
                 except ValueError as exc:
                     st.error(str(exc))

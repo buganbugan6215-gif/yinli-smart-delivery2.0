@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 import copy
 import hashlib
@@ -11,7 +11,7 @@ import math
 
 import pandas as pd
 
-from 功能组件_页面共用代码.delivery_calendar import batch_closed, beijing_now
+from 功能组件_页面共用代码.delivery_calendar import beijing_now
 from 功能组件_页面共用代码 import order_state as state
 
 INPUT_FIELDS = ("订单编号", "期望送达日期", "经度", "纬度", "品类", "配送重量_kg",
@@ -26,7 +26,28 @@ def input_fingerprint(orders, legacy=False):
 
 
 def day_orders(day):
-    return sorted([o for o in state.init_orders(include_saved=True) if str(o.get("期望送达日期")) == str(day)], key=lambda o: o["订单编号"])
+    return sorted([o for o in state.init_orders(include_saved=True) if str(o.get("期望送达日期")) == str(day)
+                   and o.get("状态") != state.CANCELLED_STATUS], key=lambda o: o["订单编号"])
+
+
+def clear_all_order_data():
+    """工作人员清空订单及其路线快照；计价参数仍保留。"""
+    if not state.st.session_state.get("staff_authenticated"):
+        raise ValueError("需要工作人员权限。")
+    with state._db_connection() as conn:
+        _tables(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        count = int(conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0])
+        for table in ("delivery_drafts", "delivery_batches", "orders"):
+            conn.execute(f"DELETE FROM {table}")
+        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+        conn.execute("DELETE FROM warehouse_selection")
+        conn.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        conn.execute("INSERT OR REPLACE INTO app_settings VALUES (?, ?)", ("legacy_excel_disabled", "true"))
+    state._cached_cloud_orders.clear()
+    for key in ("customer_orders", "verified_order_ids", "active_order_id", "lookup_order_id", "last_order_group", "tracking_base_map"):
+        state.st.session_state.pop(key, None)
+    return count
 
 
 def _tables(connection):
@@ -75,7 +96,7 @@ def save_draft(plan, now=None):
             raise ValueError("该配送日已统一确认，不能重新计算覆盖。")
         ids = {a["订单编号"] for a in plan.get("订单结果", [])}
         records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
-        snapshot = [o for o in records if o["订单编号"] in ids]
+        snapshot = [o for o in records if o["订单编号"] in ids and o.get("状态") != state.CANCELLED_STATUS]
         validate_result(plan, snapshot)
         if any(o.get("状态") not in state.STATUS_FLOW[:2] for o in snapshot):
             raise ValueError("订单已进入配送流程，请刷新后检查。")
@@ -89,6 +110,7 @@ def save_draft(plan, now=None):
 def calculation_groups(day, orders=None, confirmed=_MISSING, draft=_MISSING, selected_count=None):
     """列表分类，不删除订单，不改变客户的配送状态。"""
     orders = day_orders(day) if orders is None else orders
+    orders = [o for o in orders if o.get("状态") != state.CANCELLED_STATUS]
     if confirmed is _MISSING:
         confirmed = get_batch(day)
     if confirmed:
@@ -180,10 +202,8 @@ def state_route_valid(a):
     return is_dijkstra_route(a)
 
 
-def confirm_batch(plan, now=None):
+def confirm_batch(plan, now=None, depart_immediately=False):
     day = plan["配送日期"]
-    if not batch_closed(day, now):
-        raise ValueError("尚未到截止时间，只能查看订单，不能确认收单中的批次。")
     from 功能组件_页面共用代码.warehouses import current
     if not current(plan):
         raise ValueError("仓库模式、仓配配置或路网已变化，请重新计算。")
@@ -199,7 +219,7 @@ def confirm_batch(plan, now=None):
         if conn.execute("SELECT 1 FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone():
             raise ValueError("该配送日已统一确认，不能重复覆盖。")
         records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
-        orders = [o for o in records if str(o.get("期望送达日期")) == day]
+        orders = [o for o in records if str(o.get("期望送达日期")) == day and o.get("状态") != state.CANCELLED_STATUS]
         validate_result(plan, orders)
         if any(o.get("状态") not in state.STATUS_FLOW[:2] for o in orders):
             raise ValueError("该批次含已进入配送流程的旧订单，不能重新分配。")
@@ -211,10 +231,17 @@ def confirm_batch(plan, now=None):
             if o.get("改约申请", {}).get("状态") == "已采纳，待线路确认":
                 o["改约申请"].update({"状态": "已采纳，线路已确认", "回复": "新线路已确认，请核对新的预计送达范围并确认收货。"})
             o["行驶参数"] = {key: plan["参数"][key] for key in ("平均速度_kmh", "早高峰速度_kmh")}
-            o.update({"状态": "仓库备货中", "状态序号": 2, "数据模式": "整日批次 Dijkstra 统一调度", "批次编号": day})
+            o.update({"状态": "配送途中" if depart_immediately else "仓库备货中",
+                      "状态序号": 3 if depart_immediately else 2,
+                      "数据模式": "演示配送中（车辆位置为仿真）" if depart_immediately else "整日批次 Dijkstra 统一调度",
+                      "批次编号": day})
+            if depart_immediately:
+                o["发车时间"] = result["确认时间"]
+                o["演示发车"] = True
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(o, ensure_ascii=False), result["确认时间"], o["订单编号"]))
         conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", (day, json.dumps(result, ensure_ascii=False)))
         conn.execute("DELETE FROM delivery_drafts WHERE delivery_day=?", (day,))
+    state._cached_cloud_orders.clear()
     return result
 
 
@@ -231,7 +258,8 @@ def advance_batch(day, target, now=None):
         batch = json.loads(row[0])
         if target == "配送途中":
             records = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM orders").fetchall()]
-            validate_result(batch, [o for o in records if str(o.get("期望送达日期")) == str(day)])
+            validate_result(batch, [o for o in records if str(o.get("期望送达日期")) == str(day)
+                                    and o.get("状态") != state.CANCELLED_STATUS])
         for assigned in batch["订单结果"]:
             row = conn.execute("SELECT payload FROM orders WHERE order_id=?", (assigned["订单编号"],)).fetchone()
             if row is None:
@@ -246,6 +274,7 @@ def advance_batch(day, target, now=None):
             if target == "已送达":
                 order["实际到达时间"] = timestamp
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(order, ensure_ascii=False), timestamp, order["订单编号"]))
+    state._cached_cloud_orders.clear()
 
 
 def workbook_bytes(plan):

@@ -20,7 +20,7 @@ from 功能组件_页面共用代码.ui import inject_css, page_title, render_si
 inject_css()
 render_sidebar()
 own_orders = init_orders()
-page_title("我的配送地图", "仅显示当前订单的配送路线；放大地图后自动显示细支道路")
+page_title("我的配送地图", "仅显示本订单路线；需要时可加载路线周边的细支道路")
 
 active = st.session_state.get("active_order_id")
 if not active and own_orders:
@@ -44,7 +44,10 @@ if len(own_orders) > 1:
     if chosen != active:
         st.session_state["active_order_id"] = chosen
         st.rerun()
-group = [o for o in own_orders if order.get("总单编号") and o.get("总单编号") == order["总单编号"]] or [order]
+if order.get("状态") == "已取消":
+    st.info("这笔配送子单已取消，没有配送路线。可在上方切换同一总单的其他子单。")
+    st.stop()
+group = [o for o in own_orders if o.get("状态") != "已取消" and order.get("总单编号") and o.get("总单编号") == order["总单编号"]] or [order]
 st.caption("蓝色实线：鲜面条 · 橙色虚线：姜蒜。两种品类分车配送，可在图层菜单单独查看。")
 display_table([{"品类": o["品类"], "订单编号": o["订单编号"], "线路": o.get("线路编号", "等待确认"), "状态": o["状态"]} for o in group], hide_index=True, use_container_width=True)
 st.caption("仅展示本总单获准查看的配送子单，不显示其他客户姓名、电话、订单号或站点。")
@@ -55,11 +58,18 @@ if st.button("更新订单状态", key="refresh_tracking_status"):
 # 会话内只保留当前订单的底图；车辆移动不改变底图脚本或组件标识。
 routes = [(o["订单编号"], o["品类"], o.get("路线GeoJSON")) for o in group if is_dijkstra_route(o) and o.get("线路编号")]
 routes.sort(key=lambda item: item[1] == "姜蒜")
-map_key = ("expanded-v16", order.get("总单编号") or str(active), hashlib.sha256(json.dumps(routes, sort_keys=True).encode()).hexdigest())
+if not routes:
+    st.info("线路尚未确认，确认后会显示本单配送地图。")
+    st.stop()
+detailed = st.toggle("显示细支道路（加载更多地图数据）", key="customer-map-roads")
+points = [p for _, _, route in routes for feature in route["features"] for p in feature["geometry"]["coordinates"]]
+road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
+               max(p[0] for p in points), max(p[1] for p in points))
+map_key = ("nearby-v21", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
 cached = st.session_state.get("tracking_base_map")
 if cached is None or cached[0] != map_key:
     warehouses = {o.get("仓库编号", "D0"): {"编号": o.get("仓库编号", "D0"), "名称": o.get("出发仓库", "原配送中心"), "坐标": o.get("仓库坐标", [104.26104981303031, 30.851137170192068])} for o in group}
-    fmap, minor_layer = create_chengdu_map(zoom_start=10, warehouses=list(warehouses.values()))
+    fmap, minor_layer = create_chengdu_map(zoom_start=10, warehouses=list(warehouses.values()), road_bounds=road_bounds, detailed=detailed)
     bounds = [[p[1], p[0]] for _, _, r in routes for f in r["features"] for p in f["geometry"]["coordinates"]]
     if bounds:
         fmap.fit_bounds(bounds, padding=(28, 28), max_zoom=13)
@@ -72,7 +82,9 @@ if cached is None or cached[0] != map_key:
     fmap.get_root().render()
     st.session_state["tracking_base_map"] = (map_key, fmap)
 fmap = st.session_state["tracking_base_map"][1]
-moving = any(o.get("状态") == "配送途中" for o in group)
+moving = any(o.get("状态") == "配送途中" and
+             (snapshot := get_tracking_snapshot(o, demo_factor=60.0)) is not None and snapshot["progress"] < 1
+             for o in group)
 
 
 @st.fragment(run_every="10s" if moving else None)
@@ -82,6 +94,10 @@ def render_live_tracking() -> None:
         st.warning("订单当前不可访问，请重新查询。")
         return
     if any(current.get("状态") != old.get("状态") for current, old in zip(latest, group)):
+        st.rerun()
+    if moving and all(current.get("状态") != "配送途中" or
+                      ((snapshot := get_tracking_snapshot(current, demo_factor=60.0)) is not None and snapshot["progress"] >= 1)
+                      for current in latest):
         st.rerun()
     vehicles = folium.FeatureGroup(name="车辆位置")
     for current in latest:
@@ -103,6 +119,8 @@ def render_live_tracking() -> None:
     st_folium(copy.deepcopy(fmap), use_container_width=True, height=650, returned_objects=[], key=f"tracking-map-{map_key[1]}", feature_group_to_add=vehicles, render=False)
     if all(o.get("状态") in {"已送达", "签收完成"} for o in latest):
         st.caption("车辆已到达，自动更新已停止；地图保留在当前页面，可继续缩放查看。")
+    elif any(o.get("状态") == "配送途中" for o in latest) and not moving:
+        st.caption("仿真车辆已到达线路终点，地图自动更新已停止；实际送达仍以工作人员确认为准。")
     elif moving:
         st.caption("配送途中每 10 秒更新车辆位置，保留地图视角；工作人员确认送达后停止自动更新。")
     else:

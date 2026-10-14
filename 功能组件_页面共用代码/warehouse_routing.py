@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 
 def transfer_info(matrix, rates):

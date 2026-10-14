@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 from datetime import date, datetime
 import json
@@ -21,6 +21,7 @@ import streamlit as st
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day
 
 STATUS_FLOW = ["订单已提交", "方案待确认", "仓库备货中", "配送途中", "已送达", "签收完成"]
+CANCELLED_STATUS = "已取消"
 ROOT = Path(__file__).resolve().parents[1]
 ORDER_DATA_DIR = Path(os.getenv("YL_ORDER_DATA_DIR", str(ROOT / "客户订单数据")))
 SETTINGS_PATH = ORDER_DATA_DIR / "调价参数.json"
@@ -305,6 +306,12 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
         return [current[oid] for oid in sorted(allowed) if oid in current]
     paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
     if paths:
+        with _db_connection() as connection:
+            connection.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            legacy_disabled = connection.execute("SELECT 1 FROM app_settings WHERE name=?", ("legacy_excel_disabled",)).fetchone()
+        if legacy_disabled:
+            paths = []
+    if paths:
         fingerprint = tuple(sorted((str(path), path.stat().st_size, path.stat().st_mtime_ns) for path in paths))
         key = (str(ORDER_DB_PATH), fingerprint)
         with _EXCEL_MIGRATION_LOCK:
@@ -380,6 +387,10 @@ def _commit_orders(orders):
     # 两种品类在同一事务中写入，任何子单失败则整次提交回滚。
     with _db_connection() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        connection.execute("CREATE TABLE IF NOT EXISTS delivery_batches (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        for day in {str(order["期望送达日期"]) for order in orders}:
+            if connection.execute("SELECT 1 FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone():
+                raise ValueError(f"{day} 的配送线路已提前确认，不能再接收该日订单，请选择更晚的配送日期。")
         for order in orders:
             order["保存状态"] = "已保存到订单数据库"
             connection.execute("INSERT INTO orders VALUES (?, ?, ?)",
@@ -432,6 +443,59 @@ def verify_customer_order(order_id: str, phone_tail: str) -> dict[str, Any] | No
 
 def customer_order(order_id: str) -> dict[str, Any] | None:
     return next((item for item in init_orders() if item["订单编号"] == order_id), None)
+
+
+def cancel_customer_order(order_id: str) -> None:
+    """发车前取消子单；已确认批次须整体撤销旧线路，避免残留无效路线。"""
+    if not customer_order(order_id):
+        raise ValueError("请先核验该订单。")
+    with _db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT payload FROM orders WHERE order_id=?", (order_id,)).fetchone()
+        if row is None:
+            raise ValueError("订单不存在，请刷新后重试。")
+        order = json.loads(row[0])
+        if order.get("状态") == CANCELLED_STATUS:
+            raise ValueError("该订单已经取消。")
+        if order.get("状态") not in STATUS_FLOW[:3]:
+            raise ValueError("车辆已发出或订单已送达，无法在客户端直接取消，请联系工作人员。")
+        day = str(order["期望送达日期"])
+        connection.execute("CREATE TABLE IF NOT EXISTS delivery_batches (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS delivery_drafts (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        batch_row = connection.execute("SELECT payload FROM delivery_batches WHERE delivery_day=?", (day,)).fetchone()
+        if batch_row:
+            batch = json.loads(batch_row[0])
+            assigned = {item["订单编号"] for item in batch["订单结果"]}
+            records = [json.loads(r[0]) for r in connection.execute("SELECT payload FROM orders").fetchall()]
+            active = [item for item in records if item["订单编号"] in assigned]
+            if order_id not in assigned or len(active) != len(assigned) or any(item.get("状态") != "仓库备货中" for item in active):
+                raise ValueError("该批次已开始配送或状态已变化，请联系工作人员处理。")
+        now = beijing_now().isoformat()
+        if batch_row:
+            for remaining in active:
+                if remaining["订单编号"] == order_id:
+                    continue
+                for key in ("线路编号", "车辆编号", "配送顺序", "计划到达_分钟", "计划发车_分钟",
+                            "出发仓库", "仓库编号", "仓库坐标", "路网最短距离_km", "行驶参数",
+                            "收货确认", "到达预报", "发车时间", "批次编号"):
+                    remaining.pop(key, None)
+                remaining.update({"路线GeoJSON": None, "状态": "方案待确认", "状态序号": 1,
+                                  "数据模式": "客户取消后等待重新调度"})
+                remaining.setdefault("时间沟通记录", []).append({"时间": now, "操作": "线路重新计算", "内容": "同批次订单取消，原路线已撤销，等待工作人员重新确认。"})
+                connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
+                                   (json.dumps(remaining, ensure_ascii=False), now, remaining["订单编号"]))
+            connection.execute("DELETE FROM delivery_batches WHERE delivery_day=?", (day,))
+        order.update({"状态": CANCELLED_STATUS, "状态序号": -1, "取消时间": now, "数据模式": "客户已取消；不参与调度"})
+        for key in ("线路编号", "车辆编号", "配送顺序", "计划到达_分钟", "计划发车_分钟",
+                    "出发仓库", "仓库编号", "仓库坐标", "路网最短距离_km", "行驶参数",
+                    "收货确认", "到达预报", "发车时间", "批次编号"):
+            order.pop(key, None)
+        order["路线GeoJSON"] = None
+        order.setdefault("时间沟通记录", []).append({"时间": now, "操作": "客户取消订单", "内容": "该配送子单已取消，保留历史记录。"})
+        connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
+                           (json.dumps(order, ensure_ascii=False), now, order_id))
+        connection.execute("DELETE FROM delivery_drafts WHERE delivery_day=?", (day,))
+    _cached_cloud_orders.clear()
 
 
 def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = False) -> None:

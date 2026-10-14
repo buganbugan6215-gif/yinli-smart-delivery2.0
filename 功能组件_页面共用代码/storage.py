@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 
 def database_url():

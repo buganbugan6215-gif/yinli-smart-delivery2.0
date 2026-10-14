@@ -4,7 +4,7 @@ from datetime import timedelta
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 TABLES = {"orders": ("order_id", "updated_at", "payload"),
           "delivery_batches": ("delivery_day", "payload"),
           "delivery_drafts": ("delivery_day", "payload"),
@@ -61,7 +61,7 @@ def restore_backup(raw):
                     assert isinstance(payload, dict)
                     if name == "orders":
                         assert payload["订单编号"] == row[0]
-                        assert payload["状态"] in state.STATUS_FLOW
+                        assert payload["状态"] in state.STATUS_FLOW or payload["状态"] == state.CANCELLED_STATUS
         order_ids = {r[0] for r in data["orders"]}
         for name in ("delivery_batches", "delivery_drafts"):
             for row in data[name]:

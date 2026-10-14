@@ -95,15 +95,13 @@ def test_atomic_confirm_and_progress(isolated, real_plan):
         state.save_order_record(o)
     before = datetime(2026, 9, 23, 19, 59, 59)
     now = datetime(2026, 9, 24, 6)
-    with pytest.raises(ValueError, match="截止"):
-        batch.confirm_batch(real_plan, before)
     bad = copy.deepcopy(real_plan)
     bad["订单结果"].pop()
     with pytest.raises(ValueError, match="覆盖"):
         batch.confirm_batch(bad, now)
     assert batch.get_batch("2026-09-24") is None
     assert {o["状态"] for o in state.load_order_records()} == {"方案待确认"}
-    batch.confirm_batch(real_plan, now)
+    batch.confirm_batch(real_plan, before)
     with pytest.raises(ValueError, match="重复"):
         batch.confirm_batch(real_plan, now)
     assert {o["状态"] for o in state.load_order_records()} == {"仓库备货中"}
@@ -111,6 +109,16 @@ def test_atomic_confirm_and_progress(isolated, real_plan):
     assert {o["状态"] for o in state.load_order_records()} == {"配送途中"}
     batch.advance_batch("2026-09-24", "已送达", now)
     assert {o["状态"] for o in state.load_order_records()} == {"已送达"}
+
+
+def test_confirm_and_depart_is_one_transaction(isolated, real_plan):
+    for order in samples():
+        state.save_order_record(order)
+    early = datetime(2026, 9, 23, 12)
+    batch.confirm_batch(real_plan, early, depart_immediately=True)
+    records = state.load_order_records()
+    assert {o["状态"] for o in records} == {"配送途中"}
+    assert {o["发车时间"] for o in records} == {early.isoformat()}
 
 
 def test_customer_isolation_refresh_and_receipt(isolated, real_plan):
@@ -148,7 +156,7 @@ def test_new_order_after_computation_rejects_stale_plan(isolated, real_plan):
     assert batch.get_batch("2026-09-24") is None
 
 
-def test_compute_before_cutoff_persists_without_publishing(isolated, real_plan):
+def test_compute_and_confirm_before_cutoff(isolated, real_plan):
     for order in samples():
         state.save_order_record(order)
     early = datetime(2026, 9, 23, 10)
@@ -160,8 +168,8 @@ def test_compute_before_cutoff_persists_without_publishing(isolated, real_plan):
     assert len(state.load_order_records()) == 3
     assert {o["状态"] for o in state.load_order_records()} == {"方案待确认"}
     assert batch.get_batch("2026-09-24") is None
-    with pytest.raises(ValueError, match="截止"):
-        batch.confirm_batch(batch.get_draft("2026-09-24"), early)
+    batch.confirm_batch(batch.get_draft("2026-09-24"), early)
+    assert {o["状态"] for o in state.load_order_records()} == {"仓库备货中"}
 
 
 def test_new_arrival_during_computation_stays_pending(isolated, real_plan):

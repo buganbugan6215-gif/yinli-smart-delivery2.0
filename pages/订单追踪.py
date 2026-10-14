@@ -4,7 +4,7 @@ ensure_current_release()
 import streamlit as st
 
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
-from 功能组件_页面共用代码.order_state import STATUS_FLOW, customer_order, init_orders, verify_customer_order
+from 功能组件_页面共用代码.order_state import STATUS_FLOW, CANCELLED_STATUS, cancel_customer_order, customer_order, init_orders, verify_customer_order
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
 
@@ -51,6 +51,20 @@ if order.get("总单编号"):
     st.caption(f"总单编号：{order['总单编号']} · 每个品类独立配送与签收")
 if st.button("刷新最新状态", use_container_width=True):
     st.rerun()
+if order.get("状态") == CANCELLED_STATUS:
+    st.info("该配送子单已取消，不再参与线路计算。历史记录仍可通过订单编号查询。")
+    st.caption(f"取消时间：{str(order.get('取消时间', '—'))[:19].replace('T', ' ')}")
+    st.stop()
+if order.get("状态") in STATUS_FLOW[:3]:
+    with st.expander("取消此配送子单"):
+        st.caption("若线路已确认但尚未发车，取消会撤销该配送日全部旧线路，其他订单等待工作人员重新计算。")
+        confirm_cancel = st.checkbox("我确认取消此配送子单", key="confirm_cancel_" + order["订单编号"])
+        if st.button("确认取消订单", disabled=not confirm_cancel, key="cancel_" + order["订单编号"]):
+            try:
+                cancel_customer_order(order["订单编号"])
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
 index = int(order.get("状态序号", 0))
 st.caption(f"配送日期：{order['期望送达日期']} · 按前一日 20:00 截止收单")
 if order.get("线路编号"):

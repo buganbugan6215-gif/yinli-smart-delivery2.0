@@ -4,7 +4,7 @@ import streamlit as st
 from 功能组件_页面共用代码 import customer_dialogue as dialogue
 from 功能组件_页面共用代码 import order_state as state
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 
 def customer_panel(order):
@@ -13,7 +13,9 @@ def customer_panel(order):
         st.markdown("### 送达时间 · 与您确认")
         st.caption(f"您的可收货时间：{order.get('最早到达', '—')}—{order.get('最晚到达', '—')}；平台预报不会自动覆盖原预约。")
         window = dialogue.arrival_window(order)
-        if order.get("状态") in dialogue.DONE:
+        if order.get("演示发车"):
+            st.info("当前为演示发车，地图中的车辆位置为加速仿真；不作为真实送达时间承诺。")
+        elif order.get("状态") in dialogue.DONE:
             st.success("货物已送达，收货时间沟通已结束。")
             if order.get("实际到达时间"):
                 st.caption("工作人员登记到达时间："+order["实际到达时间"][:19].replace("T", " "))
@@ -45,7 +47,7 @@ def customer_panel(order):
             st.write(f"改约申请：{request['开始']}—{request['结束']} · {request['状态']}")
             if request.get("回复"):
                 st.info("工作人员回复："+request["回复"])
-        if order.get("状态") not in dialogue.DONE:
+        if order.get("状态") not in dialogue.DONE and not order.get("演示发车"):
             with st.expander("这个时间不方便？申请调整"):
                 st.caption("申请当天的其他收货时间；工作人员核实线路可行性后回复，提交申请不代表改约已生效。")
                 with st.form("change_"+oid):

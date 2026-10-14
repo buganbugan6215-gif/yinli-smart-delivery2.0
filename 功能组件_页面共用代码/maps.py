@@ -8,7 +8,7 @@ import folium
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-14-road-access-v20"
+RELEASE_VERSION = "2026-10-14-cancel-map-v21"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +24,29 @@ def load_geojson(name: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def create_chengdu_map(zoom_start: int = 10, warehouses=None) -> tuple[folium.Map, folium.GeoJson | None]:
+def nearby_roads(name: str, road_bounds=None) -> dict[str, Any]:
+    """只发送线路附近的离线道路，避免把全域路网塞进地图组件。"""
+    source = load_geojson(name)
+    if road_bounds is None:
+        return source
+    west, south, east, north = road_bounds
+    margin = .025
+    west, south, east, north = west-margin, south-margin, east+margin, north+margin
+    features = []
+    for feature in source.get("features", []):
+        if feature.get("geometry", {}).get("type") != "MultiLineString":
+            features.append(feature)
+            continue
+        lines = [line for line in feature["geometry"]["coordinates"]
+                 if line and not (max(p[0] for p in line) < west or min(p[0] for p in line) > east
+                                  or max(p[1] for p in line) < south or min(p[1] for p in line) > north)]
+        if lines:
+            features.append({"type": "Feature", "properties": feature.get("properties", {}),
+                             "geometry": {"type": "MultiLineString", "coordinates": lines}})
+    return {"type": "FeatureCollection", "features": features}
+
+
+def create_chengdu_map(zoom_start: int = 10, warehouses=None, road_bounds=None, detailed=False) -> tuple[folium.Map, folium.GeoJson | None]:
     fmap = folium.Map(location=DEPOT, zoom_start=zoom_start, tiles=None, control_scale=True, prefer_canvas=True)
     fmap.get_root().header.add_child(folium.Element("""<style>
     .leaflet-container { background:#e1e9f5; }
@@ -34,8 +56,7 @@ def create_chengdu_map(zoom_start: int = 10, warehouses=None) -> tuple[folium.Ma
     </style>"""))
     # 只绘制随项目交付的道路 GeoJSON，断网时地图仍可运行。
 
-    major_data = load_geojson("road_major.geojson")
-    minor_data = load_geojson("road_minor.geojson")
+    major_data = nearby_roads("road_major.geojson", road_bounds)
     if major_data.get("features"):
         folium.GeoJson(
             major_data,
@@ -46,7 +67,8 @@ def create_chengdu_map(zoom_start: int = 10, warehouses=None) -> tuple[folium.Ma
         ).add_to(fmap)
 
     minor_layer = None
-    if minor_data.get("features"):
+    minor_data = nearby_roads("road_minor.geojson", road_bounds) if detailed else None
+    if minor_data and minor_data.get("features"):
         minor_layer = folium.GeoJson(
             minor_data,
             name="细支道路（放大显示）",
@@ -132,18 +154,20 @@ def add_customer_points(fmap: folium.Map, geojson: dict[str, Any], product_code:
         ).add_to(fmap)
 
 
-def plan_map(plan):
+def plan_map(plan, detailed=False):
     from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
-    fmap, minor = create_chengdu_map(warehouses=plan.get("仓库"))
-    bounds = []
+    bounds = [[p[1], p[0]] for route in plan["线路"]
+              for feature in route["路线GeoJSON"]["features"]
+              for p in feature["geometry"]["coordinates"]]
+    road_bounds = (min(p[1] for p in bounds), min(p[0] for p in bounds),
+                   max(p[1] for p in bounds), max(p[0] for p in bounds)) if bounds else None
+    fmap, minor = create_chengdu_map(warehouses=plan.get("仓库"), road_bounds=road_bounds, detailed=detailed)
     for route in plan["线路"]:
         product = route.get("品类", "鲜面条")
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 4, "opacity": .9, "dashArray": "8 8" if product == "姜蒜" else None}
         folium.GeoJson(route["路线GeoJSON"], name=route["线路编号"], style_function=lambda _, s=style: s,
                        tooltip=escape(f"{route['线路编号']} · {route.get('出发仓库', '原配送中心')} · {route['车辆编号']}")).add_to(fmap)
-        for feature in route["路线GeoJSON"]["features"]:
-            bounds.extend([[p[1], p[0]] for p in feature["geometry"]["coordinates"]])
     for transfer in plan.get("补货", []):
         folium.GeoJson(transfer["路线GeoJSON"], name=f"{transfer['品类']}仓间补货",
                        style_function=lambda _: {"color": "#526c95", "weight": 3, "dashArray": "5 9", "opacity": .7},

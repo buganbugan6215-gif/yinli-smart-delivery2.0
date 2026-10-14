@@ -163,10 +163,12 @@ def test_requested_day_rechecked_atomically(database, monkeypatch, instant, sele
 def test_group_map_colors_privacy_and_stop_timer(monkeypatch):
     import streamlit as st
     import streamlit_folium
+    from 功能组件_页面共用代码.delivery_calendar import beijing_now
     from test_gps_simulator import _order
     first, _ = _order("已送达")
     first.update({"订单编号": "MAP-N", "总单编号": "GROUP", "品类": "鲜面条", "线路编号": "RN", "期望送达日期": "2026-10-03"})
     second = {**copy.deepcopy(first), "订单编号": "MAP-G", "品类": "姜蒜", "线路编号": "RG", "状态": "配送途中"}
+    second["发车时间"] = beijing_now().isoformat()
     unrelated = {**copy.deepcopy(first), "订单编号": "OTHER-PRIVATE", "总单编号": "OTHER"}
     orders = [first, second, unrelated]
     monkeypatch.setattr(state, "init_orders", lambda *a, **k: copy.deepcopy(orders))
