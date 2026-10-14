@@ -41,9 +41,9 @@ def snapshot(count):
     return {"仓库": depots(count), "规则": config()["规则"]}
 
 
-def current(plan):
+def current(plan, selected_count=None):
     from 功能组件_页面共用代码.batch_solver import load_graph
-    count = selection(plan["配送日期"])
+    count = selection(plan["配送日期"]) if selected_count is None else selected_count
     return (plan.get("仓库数量", 1) == count and plan.get("仓配配置") == snapshot(count)
             and plan.get("路网指纹") == load_graph()[-1])
 

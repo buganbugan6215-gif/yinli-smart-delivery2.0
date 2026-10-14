@@ -16,6 +16,7 @@ from 功能组件_页面共用代码 import order_state as state
 
 INPUT_FIELDS = ("订单编号", "期望送达日期", "经度", "纬度", "品类", "配送重量_kg",
                 "期望窗开始_分钟", "期望窗结束_分钟", "服务时间_分钟")
+_MISSING = object()
 
 
 def input_fingerprint(orders, legacy=False):
@@ -38,6 +39,21 @@ def get_draft(day):
         _tables(conn)
         row = conn.execute("SELECT payload FROM delivery_drafts WHERE delivery_day=?", (str(day),)).fetchone()
     return json.loads(row[0]) if row else None
+
+
+def load_staff_day_state(day):
+    """一次读取调度页所需的批次、草稿和仓库模式。"""
+    with state._db_connection() as conn:
+        _tables(conn)
+        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+        row = conn.execute("SELECT "
+                           "(SELECT payload FROM delivery_batches WHERE delivery_day=?), "
+                           "(SELECT payload FROM delivery_drafts WHERE delivery_day=?), "
+                           "COALESCE((SELECT count FROM warehouse_selection WHERE day=?), 1)",
+                           (str(day), str(day), str(day))).fetchone()
+    return (json.loads(row[0]) if row[0] else None,
+            json.loads(row[1]) if row[1] else None,
+            int(row[2]))
 
 
 def save_draft(plan, now=None):
@@ -70,16 +86,18 @@ def save_draft(plan, now=None):
     return saved
 
 
-def calculation_groups(day, orders=None):
+def calculation_groups(day, orders=None, confirmed=_MISSING, draft=_MISSING, selected_count=None):
     """列表分类，不删除订单，不改变客户的配送状态。"""
     orders = day_orders(day) if orders is None else orders
-    confirmed = get_batch(day)
+    if confirmed is _MISSING:
+        confirmed = get_batch(day)
     if confirmed:
         ids = {a["订单编号"] for a in confirmed["订单结果"]}
     else:
-        draft = get_draft(day)
+        if draft is _MISSING:
+            draft = get_draft(day)
         from 功能组件_页面共用代码.warehouses import current
-        marks = draft.get("订单指纹", {}) if draft and draft.get("参数") == state.pricing_settings() and current(draft) else {}
+        marks = draft.get("订单指纹", {}) if draft and draft.get("参数") == state.pricing_settings() and current(draft, selected_count) else {}
         ids = {o["订单编号"] for o in orders if marks.get(o["订单编号"]) == input_fingerprint([o])}
     return ([o for o in orders if o["订单编号"] not in ids], [o for o in orders if o["订单编号"] in ids])
 

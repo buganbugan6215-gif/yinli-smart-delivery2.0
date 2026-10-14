@@ -8,9 +8,10 @@ from 功能组件_页面共用代码.order_state import pricing_settings
 RELEASE_VERSION = "2026-10-14-cloud-read-v18"
 
 
-def selector(day):
-    confirmed = get_batch(day)
-    previous = confirmed.get("仓库数量", 1) if confirmed else warehouses.selection(day)
+def selector(day, confirmed=None, selected_count=None):
+    if confirmed is None and selected_count is None:
+        confirmed = get_batch(day)
+    previous = confirmed.get("仓库数量", 1) if confirmed else (selected_count if selected_count is not None else warehouses.selection(day))
     widget_key = f"warehouse_mode_{day}"
     flag = f"warehouse_changed_{day}"
     # 只在真实切换事件保存，刷新或其他工作人员变更不反向覆盖数据库。

@@ -11,7 +11,7 @@ ensure_current_calendar()
 
 from 功能组件_页面共用代码.order_state import pricing_settings
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, delivery_day, batch_closed, cutoff_label
-from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint, confirm_batch, advance_batch, workbook_bytes, get_draft, save_draft, calculation_groups
+from 功能组件_页面共用代码.batch_dispatch import day_orders, input_fingerprint, confirm_batch, advance_batch, workbook_bytes, save_draft, calculation_groups, load_staff_day_state
 from 功能组件_页面共用代码.batch_solver import solve_batch
 from 功能组件_页面共用代码 import warehouses, warehouse_ui
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
@@ -29,9 +29,10 @@ with order_tab:
     st.caption(f"截止时间：{cutoff_label(day)}")
     if st.button("刷新本配送日订单"):
         st.rerun()
-    count, mode_changed = warehouse_ui.selector(day)
+    batch, draft, selected_count = load_staff_day_state(day)
+    count, mode_changed = warehouse_ui.selector(day, confirmed=batch, selected_count=selected_count)
     if mode_changed and day_orders(day):
-        previous_plan = get_draft(day)
+        previous_plan = draft
         try:
             warehouse_ui.calculate(day, previous_plan["发车分钟"] if previous_plan else 360)
             st.rerun()
@@ -39,8 +40,7 @@ with order_tab:
             st.error(str(exc))
     orders = day_orders(day)
     closed = batch_closed(day)
-    batch = get_batch(day)
-    pending, calculated = calculation_groups(day, orders)
+    pending, calculated = calculation_groups(day, orders, confirmed=batch, draft=draft, selected_count=count)
     stats = st.columns(3)
     stats[0].metric("待计算订单", len(pending))
     stats[1].metric("已计算订单", len(calculated))
@@ -50,7 +50,7 @@ with order_tab:
         with st.container(key="dispatch_compute"):
             st.button("立即计算路径", type="primary", icon=":material/route:", disabled=True, use_container_width=True)
     elif not batch:
-        plan = get_draft(day)
+        plan = draft
         saved_minute = int(plan["发车分钟"]) if plan else 360
         departure = st.time_input("计划发车时间", time((saved_minute // 60) % 24, saved_minute % 60))
         if not closed:
@@ -62,7 +62,7 @@ with order_tab:
             st.success("当前订单均已计算，已从待计算列表移出。")
         if plan and pending:
             st.caption("新增或变更订单将与已计算订单合并重算，保证车辆分配与整日线路一致。")
-        stale = bool(plan and (not warehouses.current(plan) or input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or departure.hour*60+departure.minute != plan["发车分钟"]))
+        stale = bool(plan and (not warehouses.current(plan, count) or input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or departure.hour*60+departure.minute != plan["发车分钟"]))
         with st.container(key="dispatch_compute"):
             compute_now = st.button("立即计算路径", type="primary", icon=":material/route:", disabled=not pending and not stale, use_container_width=True)
         if compute_now:
@@ -77,10 +77,9 @@ with order_tab:
                 st.error(str(exc))
             finally:
                 progress.empty()
-        plan = get_draft(day)
         if plan:
             current_input = input_fingerprint(orders)
-            stale = (not warehouses.current(plan) or current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
+            stale = (not warehouses.current(plan, count) or current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
                      departure.hour*60+departure.minute != plan["发车分钟"])
             if stale:
                 st.warning("订单、仓库模式、车辆参数或计划发车时间已变化，请重新计算后确认。")
@@ -89,7 +88,9 @@ with order_tab:
                 st.stop()
             st.markdown("### 已计算 · 方案预览")
             warehouse_ui.render_cost(plan)
-            with st.expander("查看所选仓库的配送地图", expanded=True):
+            with st.expander("查看所选仓库的配送地图"):
+                show_map = st.toggle("加载配送地图", key=f"dispatch-map-visible-{day}-{count}")
+            if show_map:
                 warehouse_ui.render_map(plan, key=f"dispatch-map-{day}-{count}")
             st.caption(f"计算时间：{plan['计算时间'][:19].replace('T', ' ')}（北京时间）；订单记录完整保留。")
             warehouse_ui.route_table(plan)
