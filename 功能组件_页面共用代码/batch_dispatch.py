@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+RELEASE_VERSION = "2026-10-14-cancel-map-v22"
 
 import copy
 import hashlib
@@ -47,6 +47,16 @@ def clear_all_order_data():
     state._cached_cloud_orders.clear()
     for key in ("customer_orders", "verified_order_ids", "active_order_id", "lookup_order_id", "last_order_group", "tracking_base_map"):
         state.st.session_state.pop(key, None)
+    root = state.ORDER_DATA_DIR.resolve()
+    exports = list(root.glob("*.xlsx")) + list(root.glob("*/*.xlsx"))
+    for path in exports:
+        if not path.resolve().is_relative_to(root):
+            raise RuntimeError("数据库已清空，但发现订单目录外的 Excel 文件，未执行文件清理。")
+    try:
+        for path in exports:
+            path.unlink()
+    except OSError as exc:
+        raise RuntimeError("数据库已清空，但部分本地 Excel 订单文件未能删除，请关闭占用文件后手动清理。") from exc
     return count
 
 

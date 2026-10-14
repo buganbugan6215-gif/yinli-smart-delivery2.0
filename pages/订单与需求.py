@@ -62,7 +62,7 @@ def render_orders():
 render_orders()
 storage_panel()
 with st.expander("数据维护 · 清空全部订单"):
-    st.warning("此操作会永久删除共享订单库中的全部订单、调度草案和已确认线路，所有客户端都将无法再查询这些订单。")
+    st.warning("此操作会永久删除共享订单库中的全部订单、调度草案和已确认线路，并清理本机订单目录下的 Excel 订单文件。所有客户端都将无法再查询这些订单。")
     phrase = st.text_input("输入“清空全部订单”以确认", key="clear_orders_phrase")
     if st.button("一键清空所有订单", disabled=phrase != "清空全部订单", key="clear_all_orders"):
         try:

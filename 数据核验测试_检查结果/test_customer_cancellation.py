@@ -71,6 +71,8 @@ def test_cancel_rejects_departed_batch(isolated):
 
 def test_staff_clear_all_orders_and_plans(isolated):
     state.save_order_record(sample("YL-6", "鲜面条"))
+    legacy = state.ORDER_DATA_DIR / "历史订单.xlsx"
+    pd.DataFrame([sample("OLD-EXCEL", "鲜面条")]).to_excel(legacy, index=False)
     with state._db_connection() as conn:
         batch._tables(conn)
         conn.execute("INSERT INTO delivery_drafts VALUES (?, ?)", ("2026-10-16", "{}"))
@@ -79,10 +81,11 @@ def test_staff_clear_all_orders_and_plans(isolated):
         batch.clear_all_order_data()
     state.st.session_state["staff_authenticated"] = True
     assert batch.clear_all_order_data() == 1
+    assert not legacy.exists()
     assert not state.load_order_records()
     assert batch.get_draft("2026-10-16") is None
     assert batch.get_batch("2026-10-16") is None
-    pd.DataFrame([sample("OLD-EXCEL", "鲜面条")]).to_excel(state.ORDER_DATA_DIR / "历史订单.xlsx", index=False)
+    pd.DataFrame([sample("OLD-EXCEL", "鲜面条")]).to_excel(legacy, index=False)
     assert not state.init_orders(include_saved=True)
 
 

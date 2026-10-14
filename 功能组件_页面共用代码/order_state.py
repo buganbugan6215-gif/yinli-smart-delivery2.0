@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+RELEASE_VERSION = "2026-10-14-cancel-map-v22"
 
 from datetime import date, datetime
 import json

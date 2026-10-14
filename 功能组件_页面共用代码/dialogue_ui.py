@@ -4,7 +4,7 @@ import streamlit as st
 from 功能组件_页面共用代码 import customer_dialogue as dialogue
 from 功能组件_页面共用代码 import order_state as state
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+RELEASE_VERSION = "2026-10-14-cancel-map-v22"
 
 
 def customer_panel(order):

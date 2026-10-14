@@ -8,7 +8,7 @@ from uuid import uuid4
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+RELEASE_VERSION = "2026-10-14-cancel-map-v22"
 DONE = {"已送达", "签收完成", "已取消"}
 
 

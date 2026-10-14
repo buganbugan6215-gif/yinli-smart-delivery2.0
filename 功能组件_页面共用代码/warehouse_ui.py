@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import warehouses
 from 功能组件_页面共用代码.batch_dispatch import get_batch, get_draft, day_orders, input_fingerprint, save_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 
-RELEASE_VERSION = "2026-10-14-cancel-map-v21"
+RELEASE_VERSION = "2026-10-14-cancel-map-v22"
 
 
 def selector(day, confirmed=None, selected_count=None):
