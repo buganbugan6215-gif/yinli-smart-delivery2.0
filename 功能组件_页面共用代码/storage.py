@@ -2,9 +2,10 @@
 import os
 import re
 import sqlite3
+import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
+RELEASE_VERSION = "2026-10-14-cloud-read-v18"
 
 
 def database_url():
@@ -41,8 +42,8 @@ def postgres_sql(sql):
 class CloudConnection:
     def __init__(self, url):
         try:
-            import psycopg
-            self.conn = psycopg.connect(url, connect_timeout=10, sslmode="require", prepare_threshold=None)
+            self._lease = _cloud_pool(url).connection()
+            self.conn = self._lease.__enter__()
             # 所有业务事务遵守同一把锁，保护拆单、确认及客户反馈的原子更新。
             self.conn.execute("SET LOCAL lock_timeout = '15s'")
             self.conn.execute("SET LOCAL statement_timeout = '30s'")
@@ -51,7 +52,7 @@ class CloudConnection:
             self.conn.execute("SET LOCAL search_path TO yinli_private")
         except Exception:
             if hasattr(self, "conn"):
-                self.conn.close()
+                self._lease.__exit__(*sys.exc_info())
             raise RuntimeError("云端订单库连接失败，请检查数据库状态及 Secrets；本次未切换到本地存储。") from None
 
     def execute(self, sql, params=()):
@@ -67,14 +68,16 @@ class CloudConnection:
 
     def __exit__(self, kind, value, tb):
         try:
-            if kind is None:
-                self.conn.commit()
-            else:
-                self.conn.rollback()
+            self._lease.__exit__(kind, value, tb)
         except Exception:
             raise RuntimeError("云端事务未能完成，请重新查询订单确认保存结果。") from None
-        finally:
-            self.conn.close()
+
+
+@st.cache_resource(show_spinner=False)
+def _cloud_pool(url):
+    from psycopg_pool import ConnectionPool
+    return ConnectionPool(conninfo=url, kwargs={"connect_timeout": 10, "sslmode": "require", "prepare_threshold": None},
+                          min_size=0, max_size=4, timeout=10, open=True)
 
 
 def connect(path):
@@ -85,5 +88,9 @@ def connect(path):
         path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(path, timeout=15, factory=LocalConnection)
         connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
+    try:
+        connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
+    except Exception:
+        connection.__exit__(*sys.exc_info())
+        raise
     return connection

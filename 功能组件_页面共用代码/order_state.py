@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
+RELEASE_VERSION = "2026-10-14-cloud-read-v18"
 
 from datetime import date, datetime
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
 import sqlite3
+import threading
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -24,6 +26,8 @@ ORDER_DATA_DIR = Path(os.getenv("YL_ORDER_DATA_DIR", str(ROOT / "客户订单数
 SETTINGS_PATH = ORDER_DATA_DIR / "调价参数.json"
 ORDER_DB_PATH = ORDER_DATA_DIR / "订单状态.db"
 DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
+_EXCEL_MIGRATION_LOCK = threading.Lock()
+_MIGRATED_EXCEL_KEYS: set[tuple[Any, ...]] = set()
 
 
 def staff_password() -> str | None:
@@ -38,6 +42,19 @@ def staff_password() -> str | None:
 
 
 def pricing_settings() -> dict[str, float]:
+    from 功能组件_页面共用代码.storage import database_url
+    url = database_url()
+    if url:
+        return _cached_cloud_pricing(hashlib.sha256(url.encode()).hexdigest())
+    return _pricing_settings_uncached()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_cloud_pricing(scope: str) -> dict[str, float]:
+    return _pricing_settings_uncached()
+
+
+def _pricing_settings_uncached() -> dict[str, float]:
     defaults = {
         "起步价_元": 12.0, "里程价_元每km": 0.8,
         "鲜面条_元每kg": 0.75, "姜蒜_元每kg": 0.41,
@@ -94,6 +111,7 @@ def save_pricing_settings(values: dict[str, float]) -> None:
     else:
         ORDER_DATA_DIR.mkdir(parents=True, exist_ok=True)
         SETTINGS_PATH.write_text(payload, encoding="utf-8")
+    _cached_cloud_pricing.clear()
 
 
 def minutes_from_midnight(value: str) -> int:
@@ -217,9 +235,23 @@ def save_order_record(order: dict[str, Any]) -> None:
             "INSERT INTO orders(order_id, updated_at, payload) VALUES (?, ?, ?) ON CONFLICT(order_id) DO UPDATE SET updated_at=excluded.updated_at, payload=excluded.payload",
             (str(order.get("订单编号")), datetime.now().isoformat(timespec="seconds"), payload),
         )
+    _cached_cloud_orders.clear()
 
 
 def load_order_records() -> list[dict[str, Any]]:
+    from 功能组件_页面共用代码.storage import database_url
+    url = database_url()
+    if url:
+        return _cached_cloud_orders(hashlib.sha256(url.encode()).hexdigest())
+    return _load_order_records_uncached()
+
+
+@st.cache_data(ttl=2, show_spinner=False)
+def _cached_cloud_orders(scope: str) -> list[dict[str, Any]]:
+    return _load_order_records_uncached()
+
+
+def _load_order_records_uncached() -> list[dict[str, Any]]:
     with _db_connection() as connection:
         rows = connection.execute("SELECT payload FROM orders ORDER BY updated_at DESC").fetchall()
     return [json.loads(row[0]) for row in rows]
@@ -271,23 +303,29 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
         current = {item["订单编号"]: item for item in load_order_records()}
         # 返回共享数据库的最新值；不得用客户端旧快照覆盖调度状态。
         return [current[oid] for oid in sorted(allowed) if oid in current]
-    records: dict[str, dict[str, Any]] = {}
     paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
-    for path in paths:
-        try:
-            for raw in pd.read_excel(path).fillna("").to_dict("records"):
-                item = _parse_record(raw, path)
-                records[str(item.get("订单编号"))] = item
-        except Exception:
-            continue
-    # 旧 Excel 首次迁移采用 INSERT OR IGNORE，不能覆盖其他会话更新。
-    with _db_connection() as connection:
-        for item in records.values():
-            connection.execute("INSERT OR IGNORE INTO orders VALUES (?, ?, ?)",
-                               (str(item["订单编号"]), beijing_now().isoformat(), json.dumps(item, ensure_ascii=False, default=str)))
-    for item in load_order_records():
-        records[str(item.get("订单编号"))] = item
-    return sorted(records.values(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
+    if paths:
+        fingerprint = tuple(sorted((str(path), path.stat().st_size, path.stat().st_mtime_ns) for path in paths))
+        key = (str(ORDER_DB_PATH), fingerprint)
+        with _EXCEL_MIGRATION_LOCK:
+            if key not in _MIGRATED_EXCEL_KEYS:
+                records: dict[str, dict[str, Any]] = {}
+                for path in paths:
+                    try:
+                        for raw in pd.read_excel(path).fillna("").to_dict("records"):
+                            item = _parse_record(raw, path)
+                            records[str(item.get("订单编号"))] = item
+                    except Exception:
+                        continue
+                if records:
+                    # 旧 Excel 只迁移一次，不能覆盖数据库中后续更新的订单。
+                    with _db_connection() as connection:
+                        for item in records.values():
+                            connection.execute("INSERT OR IGNORE INTO orders VALUES (?, ?, ?)",
+                                               (str(item["订单编号"]), beijing_now().isoformat(), json.dumps(item, ensure_ascii=False, default=str)))
+                    _cached_cloud_orders.clear()
+                _MIGRATED_EXCEL_KEYS.add(key)
+    return sorted(load_order_records(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
 
 
 def _build_order(payload: dict[str, Any], now: datetime) -> dict[str, Any]:
@@ -346,6 +384,7 @@ def _commit_orders(orders):
             order["保存状态"] = "已保存到订单数据库"
             connection.execute("INSERT INTO orders VALUES (?, ?, ?)",
                                (order["订单编号"], order["提交时间"], json.dumps(order, ensure_ascii=False)))
+    _cached_cloud_orders.clear()
     st.session_state.setdefault("customer_orders", [])[:0] = orders
     return orders
 
@@ -372,10 +411,13 @@ def create_order_group(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def verify_customer_order(order_id: str, phone_tail: str) -> dict[str, Any] | None:
     """客户需要订单编号和联系电话后四位；核验只授予该订单的会话权限。"""
-    with _db_connection() as connection:
-        records = [json.loads(row[0]) for row in connection.execute("SELECT payload FROM orders").fetchall()]
+    records = load_order_records()
     key = order_id.strip().upper()
     matches = [o for o in records if o["订单编号"] == key or o.get("总单编号") == key]
+    if not matches:
+        # 新单刚提交时可能仍处于两秒读缓存内；核验时补一次实时查询。
+        records = _load_order_records_uncached()
+        matches = [o for o in records if o["订单编号"] == key or o.get("总单编号") == key]
     item = matches[0] if matches else None
     if item and len(phone_tail) == 4 and phone_tail.isdigit() and str(item.get("联系电话", "")).endswith(phone_tail):
         allowed = set(st.session_state.get("verified_order_ids", []))
@@ -410,6 +452,7 @@ def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = Fals
             order["异常反馈"] = changes["异常反馈"]
         connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
                            (json.dumps(order, ensure_ascii=False), beijing_now().isoformat(), order_id))
+    _cached_cloud_orders.clear()
 
 
 def find_order(order_id: str, include_saved: bool = False) -> dict[str, Any] | None:

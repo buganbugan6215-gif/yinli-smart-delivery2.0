@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
+RELEASE_VERSION = "2026-10-14-cloud-read-v18"
 CONFIG = Path(__file__).resolve().parents[1] / "路网数据" / "仓配参数.json"
 
 

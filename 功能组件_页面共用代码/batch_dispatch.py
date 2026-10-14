@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-customer-dialogue-v17"
+RELEASE_VERSION = "2026-10-14-cloud-read-v18"
 
 import copy
 import hashlib
