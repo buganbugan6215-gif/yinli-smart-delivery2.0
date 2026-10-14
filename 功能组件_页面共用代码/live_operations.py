@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import delivery_calendar
 from 功能组件_页面共用代码.batch_dispatch import input_fingerprint
 from 功能组件_页面共用代码.batch_solver import assign_routes, route_schedule
 
-RELEASE_VERSION = "2026-10-14-d6-admin-v24"
+RELEASE_VERSION = "2026-10-15-button-contrast-v25"
 
 PRODUCT_COLORS = {"鲜面条": "#1750df", "姜蒜": "#bd5800"}
 

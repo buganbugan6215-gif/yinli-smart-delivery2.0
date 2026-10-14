@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-14-d6-admin-v24"
+RELEASE_VERSION = "2026-10-15-button-contrast-v25"
 
 from datetime import date, datetime
 import json
