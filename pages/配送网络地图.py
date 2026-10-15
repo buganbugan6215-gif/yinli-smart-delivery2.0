@@ -66,17 +66,19 @@ static_map = st.toggle("地图加载异常时使用备用地图", key="customer-
 points = [p for _, _, route in routes for feature in route["features"] for p in feature["geometry"]["coordinates"]]
 road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
                max(p[0] for p in points), max(p[1] for p in points))
-map_key = ("nearby-v24", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
+network_margin = 0.12
+network_bounds = (road_bounds[0] - network_margin, road_bounds[1] - network_margin,
+                  road_bounds[2] + network_margin, road_bounds[3] + network_margin)
+map_key = ("nearby-v25", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
 cached = st.session_state.get("tracking_base_map")
 if cached is None or cached[0] != map_key:
     warehouses = {o.get("仓库编号", "D0"): {"编号": o.get("仓库编号", "D0"), "名称": o.get("出发仓库", "原配送中心"), "坐标": o.get("仓库坐标", [104.26104981303031, 30.851137170192068])} for o in group}
-    fmap, minor_layer = create_chengdu_map(zoom_start=12, warehouses=list(warehouses.values()), road_bounds=road_bounds, detailed=detailed)
-    # 地图组件在首帧宽度尚未确定时可能忽略 fit_bounds；初始中心和缩放也对准本单线路。
+    fmap, minor_layer = create_chengdu_map(zoom_start=10, warehouses=list(warehouses.values()), road_bounds=network_bounds, detailed=detailed)
+    # 初始视角包含线路周边路网，避免首帧地图尺寸未确定时偏离范围。
     fmap.location = [(road_bounds[1] + road_bounds[3]) / 2, (road_bounds[0] + road_bounds[2]) / 2]
-    bounds = [[p[1], p[0]] for _, _, r in routes for f in r["features"] for p in f["geometry"]["coordinates"]]
-    if bounds:
-        fmap.fit_bounds(bounds, padding=(20, 20), max_zoom=14)
-        ResponsiveFitBounds(bounds).add_to(fmap)
+    view_bounds = [[network_bounds[1], network_bounds[0]], [network_bounds[3], network_bounds[2]]]
+    fmap.fit_bounds(view_bounds, padding=(20, 20), max_zoom=14)
+    ResponsiveFitBounds(view_bounds).add_to(fmap)
     for oid, product, route in routes:
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 7 if product == "鲜面条" else 4, "opacity": 0.9, "dashArray": "8 8" if product == "姜蒜" else None}

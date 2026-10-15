@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-15-map-date-v32"
+RELEASE_VERSION = "2026-10-15-map-date-v33"
 
 
 def transfer_info(matrix, rates):
