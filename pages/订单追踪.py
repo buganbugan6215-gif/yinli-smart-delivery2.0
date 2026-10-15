@@ -3,7 +3,7 @@ ensure_current_release()
 
 import streamlit as st
 
-from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
+from 功能组件_页面共用代码.customer_dialogue import arrival_window
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, CANCELLED_STATUS, cancel_customer_order, customer_order, init_orders, verify_customer_order
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -78,8 +78,6 @@ else:
     st.info("本配送日尚未统一确认，确认后将显示您的线路编号和车辆。")
 
 
-from 功能组件_页面共用代码.dialogue_ui import customer_panel
-
 @st.fragment(run_every="15s" if order.get("状态") not in {"已送达", "签收完成"} else None)
 def render_live_eta() -> None:
     current = customer_order(str(order["订单编号"]))
@@ -88,7 +86,14 @@ def render_live_eta() -> None:
         return
     if current.get("状态") != order.get("状态"):
         st.rerun()
-    customer_panel(current)
+    window = arrival_window(current)
+    if window:
+        st.metric("预计到达时间", window["标签"])
+        st.caption(window["来源"] + "；依据已确认线路的道路行驶距离、调度车速、前序站点等待及服务时间计算。")
+        if window["已过期"]:
+            st.warning("预计时间已过，工作人员尚未登记送达，请刷新查看最新状态。")
+    elif current.get("状态") not in {"已送达", "签收完成"}:
+        st.info("线路确认后显示预计到达时间。")
 
 
 st.markdown(f"""
@@ -114,7 +119,7 @@ with left:
       <div><span>最晚送达</span><b>{order['最晚送达']}</b></div>
       <div><span>预估费用</span><b>¥ {float(order.get('预估费用_元', 0)):,.2f}</b></div>
       <div><span>服务时间</span><b>{int(order.get('服务时间_分钟', 0))} 分钟</b></div>
-      <div><span>允许送达窗口</span><b>{'可联系协商；未同意前按原预约执行' if order.get('可协商调整') else '按客户约定时间执行'}</b></div>
+      <div><span>允许送达窗口</span><b>{order.get('最早到达', '—')}—{order.get('最晚到达', '—')}</b></div>
       <div><span>配送安排</span><b>{'等待工作人员确认后展示' if index < 2 else '方案已确认，可查看配送地图'}</b></div>
     </div>
     """, unsafe_allow_html=True)

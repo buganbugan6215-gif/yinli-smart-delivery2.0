@@ -8,7 +8,7 @@ from uuid import uuid4
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 
-RELEASE_VERSION = "2026-10-15-form-submit-v26"
+RELEASE_VERSION = "2026-10-15-dispatch-contact-v27"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
@@ -25,28 +25,11 @@ def arrival_window(order, now=None):
         planned_departure = day + timedelta(minutes=float(order.get("计划发车_分钟", 360)))
         eta += actual_departure - planned_departure
         source = "按实际发车时间修正的计划预测，尚未接入实时路况"
-    report = None if demo else order.get("到达预报")
     if demo:
         source = "已确认线路的原定配送日计划；演示车辆位置不参与预计时间计算"
-    if report:
-        start, end = (as_beijing(datetime.fromisoformat(report[k])) for k in ("开始", "结束"))
-        source = "工作人员更新的送达预报"
-    else:
-        start, end = eta - timedelta(minutes=10), eta + timedelta(minutes=10)
-        # 备货阶段取原预约内的交集；途中延误不强行裁回原时间窗。
-        if not order.get("发车时间") or demo:
-            lower = day + timedelta(minutes=float(order.get("期望窗开始_分钟", 0)))
-            upper = day + timedelta(minutes=float(order.get("期望窗结束_分钟", 1439)))
-            if lower <= eta <= upper:
-                start, end = max(start, lower), min(end, upper)
-    token = hashlib.sha256(json.dumps([order.get("线路编号"), start.isoformat(), end.isoformat(), report], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    confirmed = order.get("收货确认", {})
-    return {"开始": start.isoformat(), "结束": end.isoformat(), "版本": token, "来源": source,
-            "标签": f"{start:%m月%d日 %H:%M}—{end:%H:%M}",
-            "已确认": confirmed.get("版本") == token,
-            "已过期": now > end,
-            "临近": not demo and order.get("状态") == "配送途中" and start - timedelta(minutes=30) <= now <= end,
-            "超出预约": start < day + timedelta(minutes=float(order.get("期望窗开始_分钟", 0))) or end > day + timedelta(minutes=float(order.get("期望窗结束_分钟", 1439)))}
+    return {"时间": eta.isoformat(), "来源": source, "标签": f"{eta:%m月%d日 %H:%M}",
+            "已过期": now > eta,
+            "临近": not demo and order.get("状态") == "配送途中" and eta - timedelta(minutes=30) <= now <= eta}
 
 
 def _read(conn, oid):

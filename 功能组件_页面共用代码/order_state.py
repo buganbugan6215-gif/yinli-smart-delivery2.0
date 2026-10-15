@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-form-submit-v26"
+RELEASE_VERSION = "2026-10-15-dispatch-contact-v27"
 
 from datetime import date, datetime
 import json

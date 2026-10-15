@@ -107,7 +107,7 @@ def render_live_tracking() -> None:
         from 功能组件_页面共用代码.customer_dialogue import arrival_window
         window = arrival_window(current)
         if window:
-            st.info(f"{current['品类']} · 预计送达 {window['标签']} · {'已确认可收货' if window['已确认'] else '可到订单追踪确认或申请改约'}")
+            st.info(f"{current['品类']} · 预计到达 {window['标签']}")
         snapshot = get_tracking_snapshot(current, demo_factor=60.0)
         if snapshot:
             note = "已送达" if current.get("状态") in {"已送达", "签收完成"} else f"配送途中 · 路程完成 {snapshot['progress']:.0%}"

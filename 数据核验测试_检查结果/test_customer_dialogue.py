@@ -31,24 +31,12 @@ def test_eta_confirm_delay_and_access(isolated):
     order=sample();state.save_order_record(order)
     now=datetime(2026,10,15,7)
     window=dialog.arrival_window(order,now)
-    assert "08:30—08:50" in window["标签"]
-    with pytest.raises(ValueError,match="核验"):
-        dialog.customer_reply(order["订单编号"],"确认",version=window["版本"],now=now)
-    state.verify_customer_order(order["订单编号"],"1234")
-    dialog.customer_reply(order["订单编号"],"确认",version=window["版本"],now=now)
-    saved=state.load_order_records()[0]
-    assert dialog.arrival_window(saved,now)["已确认"]
-    assert saved["期望窗开始_分钟"]==480
-    saved["发车时间"]="2026-10-15T06:30:00+08:00"
-    saved["状态"]="配送途中"
-    state.save_order_record(saved)
-    updated=dialog.arrival_window(saved,now)
-    assert "09:00—09:20" in updated["标签"]
-    assert not updated["已确认"]
-    with pytest.raises(ValueError,match="更新"):
-        dialog.customer_reply(order["订单编号"],"确认",version=window["版本"],now=now)
-    with pytest.raises(ValueError,match="过期"):
-        dialog.customer_reply(order["订单编号"],"确认",version=updated["版本"],now=datetime(2026,10,15,12))
+    assert window["标签"] == "10月15日 08:40"
+    order["发车时间"]="2026-10-15T06:30:00+08:00"
+    order["状态"]="配送途中"
+    updated=dialog.arrival_window(order,now)
+    assert updated["标签"] == "10月15日 09:10"
+    assert order["期望窗开始_分钟"]==480
 
 
 def test_demo_shows_planned_narrow_window_without_shifting_delivery_day(isolated):
@@ -57,12 +45,9 @@ def test_demo_shows_planned_narrow_window_without_shifting_delivery_day(isolated
     state.save_order_record(order)
     window=dialog.arrival_window(order,datetime(2026,10,14,22))
     assert window is not None
-    assert window["标签"] == "10月15日 08:30—08:50"
+    assert window["标签"] == "10月15日 08:40"
     assert "演示" in window["来源"]
     assert not window["临近"]
-    state.verify_customer_order(order["订单编号"],"1234")
-    with pytest.raises(ValueError,match="演示发车"):
-        dialog.customer_reply(order["订单编号"],"确认",version=window["版本"],now=datetime(2026,10,14,22))
 
 
 def test_request_validation_and_staff_reply(isolated):
@@ -186,12 +171,7 @@ def test_customer_and_staff_ui(isolated, monkeypatch):
     app.session_state["verified_order_ids"]=[order["订单编号"]]
     app.switch_page("pages/订单追踪.py").run()
     assert not app.exception
-    next(b for b in app.button if b.label=="此时间可以收货").click().run()
-    assert not app.exception
-    assert state.load_order_records()[0].get("收货确认")
-    next(b for b in app.button if b.label=="提交改约申请").click().run()
-    assert not app.exception
-    assert state.load_order_records()[0]["改约申请"]["状态"]=="待处理"
+    assert not any(b.label in {"此时间可以收货", "提交改约申请"} for b in app.button)
     staff=AppTest.from_file(str(root/"app.py"),default_timeout=30).run()
     staff.session_state["staff_authenticated"]=True
     staff.switch_page("pages/订单与需求.py").run()
@@ -201,10 +181,7 @@ def test_customer_and_staff_ui(isolated, monkeypatch):
     # 新建的已确认记录属于全部订单视图。
     next(r for r in staff.radio if r.label=="订单列表").set_value("全部订单").run()
     assert not staff.exception
-    next(t for t in staff.text_area if t.label=="无法直接调整时的回复").input("已电话沟通，保持原预约")
-    next(b for b in staff.button if b.label=="保持原预约并回复客户").click().run()
-    assert not staff.exception
-    assert state.load_order_records()[0]["改约申请"]["状态"]=="未调整，已回复"
+    assert not any(b.label=="保持原预约并回复客户" for b in staff.button)
     staff.switch_page("pages/订单备份与迁移.py").run()
     assert not staff.exception
     next(b for b in staff.button if b.label=="生成完整业务备份").click().run()

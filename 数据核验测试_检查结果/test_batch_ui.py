@@ -40,6 +40,13 @@ def test_staff_compute_confirm_and_customer_lookup(tmp_path, monkeypatch):
     button(staff, "统一确认全部线路并开始备货").click().run()
     assert not staff.exception
     assert all(o["线路编号"] for o in state.load_order_records())
+    assert any("客户电话" in table.value.columns and set(table.value["客户电话"]) == {"00000000001", "00000000002"}
+               for table in staff.dataframe)
+    assert any(b.label == "生成整批距离矩阵与线路清单" for b in staff.button)
+    assert not staff.get("download_button")
+    button(staff, "生成整批距离矩阵与线路清单").click().run()
+    assert not staff.exception
+    assert any(b.label == "下载整批距离矩阵与线路清单" for b in staff.get("download_button"))
     button(staff, "全部车辆发出，开始配送").click().run()
     assert not staff.exception
     button(staff, "确认本批次全部货物已送达").click().run()

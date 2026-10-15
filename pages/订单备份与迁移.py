@@ -2,7 +2,7 @@ from 功能组件_页面共用代码.release_runtime import ensure_current_relea
 ensure_current_release()
 
 from 功能组件_页面共用代码.ui import inject_css, render_sidebar, require_staff_access, page_title
-from 功能组件_页面共用代码.dialogue_ui import storage_panel
+from 功能组件_页面共用代码.storage_ui import storage_panel
 
 inject_css()
 render_sidebar()

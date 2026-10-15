@@ -14,7 +14,6 @@ require_staff_access()
 page_title("订单台账", "查询客户提交、配送子单与异常反馈；调度操作请进入统一调度")
 from 功能组件_页面共用代码.order_state import init_orders
 from 功能组件_页面共用代码.order_archive import recent_orders
-from 功能组件_页面共用代码.dialogue_ui import staff_panel
 history_mode = st.radio("查询范围", ["按配送日", "近 30 天历史订单"], horizontal=True)
 day = select_delivery_day(st, historical=True) if history_mode == "按配送日" else None
 query = st.text_input("搜索总单号、子单号或客户名称").strip()
@@ -44,7 +43,6 @@ def render_orders():
         return
     visible = [o for o in selected if (product == "全部" or o["品类"] == product) and
                (not query or any(query.lower() in str(o.get(k, "")).lower() for k in ("订单编号", "总单编号", "客户名称")))]
-    staff_panel(visible)
     summary = order_summary(visible)
     st.caption(f"每 30 秒读取最新订单 · 当前筛选 {summary['客户提交次数']} 次客户提交 / {summary['配送子单']} 个配送子单 / {summary['货量_kg']:.1f} 千克")
     frame = pd.DataFrame(visible)
