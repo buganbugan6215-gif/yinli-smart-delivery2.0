@@ -189,7 +189,7 @@ def test_group_map_colors_privacy_and_stop_timer(monkeypatch):
     app.session_state["active_order_id"] = "MAP-N"
     app.switch_page("pages/配送网络地图.py").run()
     assert not app.exception
-    assert intervals[-1] == "10s"
+    assert intervals[-1] == "30s"
     script = components[-1]["script"]
     assert "#1750df" in script and "#bd5800" in script and "8 8" in script
     assert "OTHER-PRIVATE" not in script

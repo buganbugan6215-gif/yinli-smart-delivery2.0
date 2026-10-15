@@ -9,7 +9,7 @@ from branca.element import MacroElement, Template
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-route-network-v34"
+RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +42,45 @@ class ResponsiveFitBounds(MacroElement):
     def __init__(self, bounds: list[list[float]]) -> None:
         super().__init__()
         self.bounds_json = json.dumps(bounds)
+
+
+class AnimatedVehicle(MacroElement):
+    """按行驶时间轴连续移动 Leaflet 标记，地图缩放时位置仍落在道路线上。"""
+
+    _template = Template("""
+    {% macro script(this, kwargs) %}
+    (function () {
+      const marker = {{ this.marker_name }};
+      const path = {{ this.timeline_json }};
+      const started = {{ this.started_ms }};
+      const factor = {{ this.factor }};
+      function position() {
+        const elapsed = Math.max(0, (Date.now() - started) / 1000 * factor);
+        let low = 0, high = path.length - 1;
+        while (low < high) {
+          const mid = Math.floor((low + high) / 2);
+          if (path[mid][2] < elapsed) low = mid + 1;
+          else high = mid;
+        }
+        const next = Math.max(1, low);
+        const before = path[next - 1], after = path[next];
+        const span = after[2] - before[2];
+        const ratio = span <= 0 ? 1 : Math.max(0, Math.min(1, (elapsed - before[2]) / span));
+        marker.setLatLng([before[0] + (after[0] - before[0]) * ratio,
+                          before[1] + (after[1] - before[1]) * ratio]);
+        if (elapsed < path[path.length - 1][2]) requestAnimationFrame(position);
+      }
+      requestAnimationFrame(position);
+    })();
+    {% endmacro %}
+    """)
+
+    def __init__(self, marker: folium.Marker, timeline: list[list[float]], started_ms: int, factor: int) -> None:
+        super().__init__()
+        self.marker_name = marker.get_name()
+        self.timeline_json = json.dumps(timeline)
+        self.started_ms = started_ms
+        self.factor = factor
 
 
 @lru_cache(maxsize=4)

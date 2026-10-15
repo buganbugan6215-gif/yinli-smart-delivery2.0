@@ -9,7 +9,7 @@ from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 from 功能组件_页面共用代码.arrival_estimate import arrival_window
 
-RELEASE_VERSION = "2026-10-15-route-network-v34"
+RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
 DONE = {"已送达", "签收完成", "已取消"}
 
 

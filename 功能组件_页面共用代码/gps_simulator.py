@@ -1,7 +1,7 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-route-network-v34"
+RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
 
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -48,6 +48,30 @@ def _cumulative_distances(coordinates: list[list[float]]) -> list[float]:
     for start, end in zip(coordinates, coordinates[1:]):
         cumulative.append(cumulative[-1] + _haversine_km(start, end))
     return cumulative
+
+
+def route_motion_timeline(order: dict[str, Any]) -> list[list[float]]:
+    """每个道路坐标对应的累计行驶秒数；地图缩放只改变像素位移。"""
+    if not is_dijkstra_route(order):
+        return []
+    from 功能组件_页面共用代码.batch_solver import travel_minutes
+    from 功能组件_页面共用代码.order_state import pricing_settings
+
+    rates = order.get("行驶参数") or pricing_settings()
+    normal = float(rates["平均速度_kmh"])
+    peak = float(rates["早高峰速度_kmh"])
+    coordinates = route_coordinates(order.get("路线GeoJSON"))
+    if len(coordinates) < 2 or min(normal, peak) <= 0:
+        return []
+    clock = float(order.get("计划发车_分钟", 0))
+    elapsed_seconds = 0.0
+    timeline = [[coordinates[0][1], coordinates[0][0], 0.0]]
+    for start, end in zip(coordinates, coordinates[1:]):
+        minutes = travel_minutes(_haversine_km(start, end), clock, normal, peak)
+        elapsed_seconds += minutes * 60
+        clock += minutes
+        timeline.append([end[1], end[0], elapsed_seconds])
+    return timeline
 
 
 def _position_at_distance(

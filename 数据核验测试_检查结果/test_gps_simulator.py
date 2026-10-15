@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 import pytest
 
-from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates
+from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates, route_motion_timeline
+from 功能组件_页面共用代码.batch_solver import travel_minutes
 
 
 def _order(status="配送途中"):
@@ -35,6 +36,17 @@ def test_snapshot_moves_forward_and_remaining_distance_falls():
     assert first and later
     assert later["progress"] > first["progress"]
     assert later["remaining_km"] < first["remaining_km"]
+
+
+def test_motion_timeline_uses_road_length_and_peak_speed():
+    order, departed = _order()
+    order["计划发车_分钟"] = 419
+    order["行驶参数"] = {"平均速度_kmh": 60, "早高峰速度_kmh": 30}
+    timeline = route_motion_timeline(order)
+    snapshot = get_tracking_snapshot(order, now=departed, speed_kmh=60, peak_speed_kmh=30, demo_factor=1)
+    assert timeline[0][2] == 0
+    assert timeline[-1][2] == pytest.approx(travel_minutes(snapshot["total_km"], 419, 60, 30) * 60)
+    assert timeline[-1][:2] == [30.0, 104.1]
 
 
 def test_non_dijkstra_route_is_rejected():

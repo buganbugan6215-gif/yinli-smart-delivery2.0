@@ -5,14 +5,15 @@ import folium
 import copy
 import hashlib
 import json
+from datetime import datetime, timezone
 import streamlit as st
 from 功能组件_页面共用代码.ui import display_table
 from streamlit_folium import st_folium
 
-from 功能组件_页面共用代码.maps import ResponsiveFitBounds, add_zoom_detail_behavior, create_chengdu_map
+from 功能组件_页面共用代码.maps import AnimatedVehicle, ResponsiveFitBounds, add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
-from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
+from 功能组件_页面共用代码.gps_simulator import route_motion_timeline
 from 功能组件_页面共用代码.order_state import customer_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -63,13 +64,26 @@ if not routes:
     st.stop()
 detailed = st.toggle("显示细支道路（加载更多地图数据）", key="customer-map-roads")
 static_map = st.toggle("地图加载异常时使用备用地图", key="customer-map-static")
+demo_orders = any(o.get("演示发车") for o in group)
+playback_factor = (st.select_slider("演示行驶倍率", options=[1, 5, 10, 20], value=10,
+                                    key="customer-map-playback-factor") if demo_orders else 1)
+replay_key = f"tracking-replay-{order.get('总单编号') or active}"
+replay = st.button("从起点重播车辆模拟") if demo_orders else False
+if replay_key not in st.session_state or replay:
+    st.session_state[replay_key] = int(datetime.now(timezone.utc).timestamp() * 1000)
+st.caption("地图标记按已确认道路路线的逐段距离、平均车速和早高峰车速连续移动；"
+           + (f"演示按 {playback_factor} 倍时间播放。" if demo_orders else "")
+           + "缩放地图时，屏幕位移随比例尺改变。")
 points = [p for _, _, route in routes for feature in route["features"] for p in feature["geometry"]["coordinates"]]
 road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
                max(p[0] for p in points), max(p[1] for p in points))
 network_margin = 0.12
 network_bounds = (road_bounds[0] - network_margin, road_bounds[1] - network_margin,
                   road_bounds[2] + network_margin, road_bounds[3] + network_margin)
-map_key = ("nearby-v25", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
+map_key = ("nearby-v26", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([
+    routes, detailed, playback_factor, st.session_state[replay_key],
+    [(o["订单编号"], o.get("状态"), o.get("发车时间"), o.get("行驶参数")) for o in group],
+], sort_keys=True).encode()).hexdigest())
 cached = st.session_state.get("tracking_base_map")
 if cached is None or cached[0] != map_key:
     warehouses = {o.get("仓库编号", "D0"): {"编号": o.get("仓库编号", "D0"), "名称": o.get("出发仓库", "原配送中心"), "坐标": o.get("仓库坐标", [104.26104981303031, 30.851137170192068])} for o in group}
@@ -83,17 +97,37 @@ if cached is None or cached[0] != map_key:
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 7 if product == "鲜面条" else 4, "opacity": 0.9, "dashArray": "8 8" if product == "姜蒜" else None}
         folium.GeoJson(route, name=f"{product} · {oid}", style_function=lambda _, s=style: s, tooltip=f"本单{product}配送路线").add_to(fmap)
+    animation_ends = []
+    for current in group:
+        timeline = route_motion_timeline(current)
+        if not timeline or current.get("状态") not in {"配送途中", "已送达", "签收完成"}:
+            continue
+        product = current["品类"]
+        completed = current.get("状态") in {"已送达", "签收完成"}
+        marker = folium.Marker(
+            timeline[-1][:2] if completed else timeline[0][:2],
+            tooltip=f"{product} · {current.get('车辆编号', '配送车辆')} · {'已送达' if completed else '行驶模拟'}",
+            icon=folium.Icon(color="blue" if product == "鲜面条" else "orange", icon="truck", prefix="fa"),
+        ).add_to(fmap)
+        if completed:
+            continue
+        try:
+            actual_start = int(datetime.fromisoformat(str(current["发车时间"])).timestamp() * 1000)
+        except (KeyError, TypeError, ValueError):
+            continue
+        factor = playback_factor if current.get("演示发车") else 1
+        started_ms = st.session_state[replay_key] if current.get("演示发车") else actual_start
+        AnimatedVehicle(marker, timeline, started_ms, factor).add_to(fmap)
+        animation_ends.append(started_ms + timeline[-1][2] * 1000 / factor)
     add_zoom_detail_behavior(fmap, minor_layer, threshold=13)
     folium.LayerControl(collapsed=True, position="topright").add_to(fmap)
     fmap.get_root().render()
-    st.session_state["tracking_base_map"] = (map_key, fmap)
+    st.session_state["tracking_base_map"] = (map_key, fmap, animation_ends)
 fmap = st.session_state["tracking_base_map"][1]
-moving = any(o.get("状态") == "配送途中" and
-             (snapshot := get_tracking_snapshot(o, demo_factor=60.0)) is not None and snapshot["progress"] < 1
-             for o in group)
+moving = any(datetime.now(timezone.utc).timestamp() * 1000 < end for end in st.session_state["tracking_base_map"][2])
 
 
-@st.fragment(run_every="10s" if moving else None)
+@st.fragment(run_every="30s" if moving else None)
 def render_live_tracking() -> None:
     latest = [customer_order(o["订单编号"]) for o in group]
     if any(o is None for o in latest):
@@ -101,11 +135,9 @@ def render_live_tracking() -> None:
         return
     if any(current.get("状态") != old.get("状态") for current, old in zip(latest, group)):
         st.rerun()
-    if moving and all(current.get("状态") != "配送途中" or
-                      ((snapshot := get_tracking_snapshot(current, demo_factor=60.0)) is not None and snapshot["progress"] >= 1)
-                      for current in latest):
+    if moving and all(datetime.now(timezone.utc).timestamp() * 1000 >= end
+                      for end in st.session_state["tracking_base_map"][2]):
         st.rerun()
-    vehicles = folium.FeatureGroup(name="车辆位置")
     for current in latest:
         if not current.get("线路编号"):
             st.info(f"{current['品类']}：等待工作人员统一确认。")
@@ -114,26 +146,18 @@ def render_live_tracking() -> None:
         window = arrival_window(current)
         if window:
             st.info(f"{current['品类']} · 预计到达 {window['标签']}")
-        snapshot = get_tracking_snapshot(current, demo_factor=60.0)
-        if snapshot:
-            note = "已送达" if current.get("状态") in {"已送达", "签收完成"} else f"配送途中 · 路程完成 {snapshot['progress']:.0%}"
-            folium.Marker([snapshot["latitude"], snapshot["longitude"]],
-                tooltip=f"{current['品类']} · {current.get('车辆编号', '配送车辆')} · {note}",
-                icon=folium.Icon(color="blue" if current["品类"] == "鲜面条" else "orange", icon="truck", prefix="fa"),
-            ).add_to(vehicles)
     # 组件会修改传入对象的内部 ID 和图层，使用副本保护缓存底图。
     display_map = copy.deepcopy(fmap)
     if static_map:
-        vehicles.add_to(display_map)
         st.components.v1.html(display_map.get_root().render(), height=800, scrolling=False)
     else:
-        st_folium(display_map, use_container_width=True, height=800, returned_objects=[], key=f"tracking-map-{map_key[1]}", feature_group_to_add=vehicles, render=False)
+        st_folium(display_map, use_container_width=True, height=800, returned_objects=[], key=f"tracking-map-{map_key[1]}-{map_key[2][:8]}", render=False)
     if all(o.get("状态") in {"已送达", "签收完成"} for o in latest):
         st.caption("车辆已到达，自动更新已停止；地图保留在当前页面，可继续缩放查看。")
     elif any(o.get("状态") == "配送途中" for o in latest) and not moving:
         st.caption("仿真车辆已到达线路终点，地图自动更新已停止；实际送达仍以工作人员确认为准。")
     elif moving:
-        st.caption("配送途中每 10 秒更新车辆位置，保留地图视角；工作人员确认送达后停止自动更新。")
+        st.caption("车辆标记在浏览器内连续移动；每 30 秒核对订单状态，确认送达后停止模拟。")
     else:
         st.caption("当前地图不自动更新。需要查看最新调度或发车状态时，点击“更新订单状态”。")
     st.caption("蓝色鲜面条、橙色姜蒜路线均为已确认的 道路最短路径。车辆位置为演示仿真，不是车载定位实时数据。")

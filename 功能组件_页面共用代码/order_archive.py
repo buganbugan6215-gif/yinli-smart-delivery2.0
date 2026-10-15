@@ -4,7 +4,7 @@ from datetime import timedelta
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now
 
-RELEASE_VERSION = "2026-10-15-route-network-v34"
+RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
 TABLES = {"orders": ("order_id", "updated_at", "payload"),
           "delivery_batches": ("delivery_day", "payload"),
           "delivery_drafts": ("delivery_day", "payload"),

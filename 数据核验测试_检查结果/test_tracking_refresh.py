@@ -33,13 +33,13 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     app.switch_page("pages/配送网络地图.py").run()
     assert not app.exception
-    assert intervals[-1] == "10s"
+    assert intervals[-1] == "30s"
     app.run()
     assert not app.exception
     assert len(builds) == 1
     assert components[-1]["key"] == components[-2]["key"]
     assert components[-1]["script"] == components[-2]["script"]
-    assert components[-1]["feature_group"]  # 车辆位于单独的动态图层。
+    assert "requestAnimationFrame(position)" in components[-1]["script"]
 
     # 在下一次片段检查期间确认送达，页面应重新注册无定时器片段。
     reads = 0
@@ -56,14 +56,14 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     assert not app.exception
     assert intervals[-1] is None
     assert any("自动更新已停止" in c.value for c in app.caption)
-    assert len(builds) == 1
-    assert components[-1]["key"] == components[0]["key"]
+    assert len(builds) == 2
+    assert components[-1]["key"] != components[0]["key"]
     monkeypatch.setattr(state, "customer_order", lambda *a: copy.deepcopy(order))
     order["状态"] = "签收完成"
     app.run()
     assert not app.exception
     assert intervals[-1] is None
-    assert len(builds) == 1
+    assert len(builds) == 3
 
     order["状态"] = "仓库备货中"
     app.run()
@@ -76,5 +76,5 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     app.session_state["active_order_id"] = "MAP-OTHER"
     app.run()
     assert not app.exception
-    assert len(builds) == 2
+    assert len(builds) == 5
     assert components[-1]["key"] != components[0]["key"]
