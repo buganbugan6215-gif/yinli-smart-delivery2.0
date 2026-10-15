@@ -8,7 +8,7 @@ import folium
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-route-eta-v28"
+RELEASE_VERSION = "2026-10-15-map-date-v29"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,7 +47,8 @@ def nearby_roads(name: str, road_bounds=None) -> dict[str, Any]:
 
 
 def create_chengdu_map(zoom_start: int = 10, warehouses=None, road_bounds=None, detailed=False) -> tuple[folium.Map, folium.GeoJson | None]:
-    fmap = folium.Map(location=DEPOT, zoom_start=zoom_start, tiles=None, control_scale=True, prefer_canvas=True)
+    fmap = folium.Map(location=DEPOT, zoom_start=zoom_start, zoom_snap=0.25,
+                      tiles=None, control_scale=True, prefer_canvas=True)
     fmap.get_root().header.add_child(folium.Element("""<style>
     .leaflet-container { background:#e1e9f5; }
     .leaflet-popup-content-wrapper,.leaflet-popup-tip,.leaflet-tooltip,

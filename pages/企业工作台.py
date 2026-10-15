@@ -38,7 +38,7 @@ def distance_matrix(plan):
     return pd.DataFrame(plan["距离矩阵_m"], index=plan["矩阵标签"], columns=plan["矩阵标签"])
 
 with order_tab:
-    day = select_delivery_day(st, historical=True)
+    day = select_delivery_day(st, historical=True, state_key="dispatch")
     st.caption(f"截止时间：{cutoff_label(day)}")
     if st.button("刷新本配送日订单"):
         st.rerun()

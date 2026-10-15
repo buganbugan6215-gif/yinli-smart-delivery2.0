@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-15-route-eta-v28"
+RELEASE_VERSION = "2026-10-15-map-date-v29"
 
 
 def transfer_info(matrix, rates):

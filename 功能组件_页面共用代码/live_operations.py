@@ -1,11 +1,11 @@
 """运营页面只读取当前订单数据库及对应配送日的调度结果。"""
-from datetime import timedelta
+from datetime import date, timedelta
 
 from 功能组件_页面共用代码 import delivery_calendar
 from 功能组件_页面共用代码.batch_dispatch import input_fingerprint
 from 功能组件_页面共用代码.batch_solver import assign_routes, route_schedule
 
-RELEASE_VERSION = "2026-10-15-route-eta-v28"
+RELEASE_VERSION = "2026-10-15-map-date-v29"
 
 PRODUCT_COLORS = {"鲜面条": "#1750df", "姜蒜": "#bd5800"}
 
@@ -15,11 +15,27 @@ def operating_days():
     return [str(today), str(today + timedelta(days=1))]
 
 
-def select_delivery_day(st, historical=False):
+def select_delivery_day(st, historical=False, state_key=None):
     days = operating_days()
-    chosen = st.selectbox("配送日期", days + (["其他日期"] if historical else []),
-                          format_func=lambda d: f"{'今天' if d == days[0] else '明天'} · {d}" if d in days else d)
-    return str(st.date_input("选择其他配送日期")) if chosen == "其他日期" else chosen
+    options = days + (["其他日期"] if historical else [])
+    saved_key = f"{state_key}_selected_day" if state_key else None
+    saved = st.session_state.get(saved_key) if saved_key else None
+    default = saved if saved in days else "其他日期" if historical and saved else days[0]
+    chosen = st.selectbox("配送日期", options, index=options.index(default),
+                          format_func=lambda d: f"{'今天' if d == days[0] else '明天'} · {d}" if d in days else d,
+                          key=f"{state_key}_day_mode" if state_key else None)
+    if chosen == "其他日期":
+        try:
+            initial_date = date.fromisoformat(saved) if saved else delivery_calendar.beijing_now().date()
+        except ValueError:
+            initial_date = delivery_calendar.beijing_now().date()
+        day = str(st.date_input("选择其他配送日期", value=initial_date,
+                                key=f"{state_key}_other_date" if state_key else None))
+    else:
+        day = chosen
+    if saved_key:
+        st.session_state[saved_key] = day
+    return day
 
 
 def order_summary(orders):

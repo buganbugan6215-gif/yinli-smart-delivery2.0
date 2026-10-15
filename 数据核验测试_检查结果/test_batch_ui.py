@@ -30,6 +30,16 @@ def test_staff_compute_confirm_and_customer_lookup(tmp_path, monkeypatch):
     staff.selectbox[0].select("其他日期").run()
     staff.date_input[0].set_value(date(2020, 1, 2)).run()
     assert not staff.exception
+    staff.switch_page("pages/订单追踪.py").run()
+    next(t for t in staff.text_input if t.label == "订单编号").input("UITEST-1")
+    next(t for t in staff.text_input if t.label == "联系电话后四位").input("0001")
+    button(staff, "查询订单").click().run()
+    assert not staff.exception
+    staff.switch_page("pages/企业工作台.py").run()
+    assert not staff.exception
+    assert staff.selectbox[0].value == "其他日期"
+    assert staff.date_input[0].value == date(2020, 1, 2)
+    assert staff.session_state["dispatch_selected_day"] == "2020-01-02"
     button(staff, "立即计算路径").click().run()
     assert not staff.exception
     assert next(m.value for m in staff.metric if m.label == "待计算订单") == "0"
