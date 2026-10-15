@@ -67,10 +67,6 @@ def render_order_form():
                                       key="requested_delivery_date", format="YYYY-MM-DD")
         expected_time = t1.time_input("最早到达时间", value=time(8, 0))
         latest_time = t2.time_input("最晚送达时间", value=time(18, 0))
-        preferred_enabled = st.checkbox("填写偏好到达时间（选填）")
-        preferred_time = st.time_input("偏好到达时间", value=time(9), disabled=not preferred_enabled)
-        flexible = st.checkbox("如果需要，愿意与工作人员协商调整收货时间", value=False)
-        st.caption("可收货时间段用于路线约束；偏好时间供工作人员参考，不代表保证送达时间。")
         st.caption(f"最早可选 {earliest_date}，也可预约更晚日期。所选批次截止时间： {cutoff_label(delivery_date)}。")
 
     with st.container(key="order_cargo"):
@@ -116,7 +112,6 @@ def render_order_form():
                     "客户名称": customer.strip(), "联系人": contact.strip(), "联系电话": phone.strip(), "收货地址": address.strip(),
                     "鲜面需求量_kg": noodle_kg, "生姜需求量_kg": ginger_kg, "大蒜需求量_kg": garlic_kg,
                     "期望送达日期": delivery_date.isoformat(),
-                    "偏好到达时间": preferred_time.strftime("%H:%M") if preferred_enabled else None, "可协商调整": flexible,
                     "最早到达": expected_time.strftime('%H:%M'), "最晚到达": latest_time.strftime('%H:%M'),
                     "经度": coordinates[0], "纬度": coordinates[1], "地址识别结果": coordinates[2], "地址识别服务": coordinates[3],
                 })
