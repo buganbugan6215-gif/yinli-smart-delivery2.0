@@ -134,4 +134,4 @@ with right:
     if order.get("状态") == "已送达" and st.button("完成电子签收", type="primary", use_container_width=True):
         st.switch_page("pages/电子签收.py")
 
-st.markdown("<div class='demo-banner motion-reveal'><b>车辆定位仿真</b><span>车辆位置和预计到达时间基于已确认的道路最短路径与发车时间计算，不代表车载定位实时上报，也不展示温度数据。</span></div>", unsafe_allow_html=True)
+st.markdown("<div class='demo-banner motion-reveal'><b>车辆位置演示</b><span>车辆位置和预计到达时间基于已确认的道路最短路径与发车时间计算，尚未接入北斗导航实时定位，也不展示温度数据。</span></div>", unsafe_allow_html=True)

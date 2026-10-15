@@ -18,7 +18,7 @@ def ensure_current_calendar():
         for module_name, names in {
             "order_state": ("beijing_now", "delivery_day"),
             "batch_dispatch": ("beijing_now", "batch_closed"),
-            "gps_simulator": ("as_beijing",),
+            "vehicle_simulator": ("as_beijing",),
         }.items():
             module = sys.modules.get(f"{_PACKAGE}.{module_name}")
             if module is not None:

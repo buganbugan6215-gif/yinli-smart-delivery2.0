@@ -3,7 +3,7 @@ import json
 import sqlite3
 import pytest
 
-from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates, route_motion_plan, route_motion_timeline, route_stop_data
+from 功能组件_页面共用代码.vehicle_simulator import arrival_risk, get_tracking_snapshot, route_coordinates, route_motion_plan, route_motion_timeline, route_stop_data
 from 功能组件_页面共用代码.batch_solver import travel_minutes
 
 

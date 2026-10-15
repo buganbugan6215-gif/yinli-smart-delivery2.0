@@ -8,7 +8,7 @@ from 功能组件_页面共用代码.delivery_calendar import beijing_now
 
 from 功能组件_页面共用代码 import maps, order_state as state
 from test_batch_ui import ROOT
-from test_gps_simulator import _order
+from test_vehicle_simulator import _order
 
 
 def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):

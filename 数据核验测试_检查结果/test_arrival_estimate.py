@@ -11,7 +11,7 @@ from streamlit.runtime.state.session_state_proxy import SessionStateProxy
 
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.arrival_estimate import arrival_window, estimate_from_plan
-from 功能组件_页面共用代码.gps_simulator import route_motion_plan, route_stop_data
+from 功能组件_页面共用代码.vehicle_simulator import route_motion_plan, route_stop_data
 from 功能组件_页面共用代码.batch_dispatch import _tables
 
 

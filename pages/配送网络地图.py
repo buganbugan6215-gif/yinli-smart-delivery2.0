@@ -13,7 +13,7 @@ from streamlit_folium import st_folium
 from 功能组件_页面共用代码.maps import AnimatedVehicle, PlaybackControl, ResponsiveFitBounds, add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
-from 功能组件_页面共用代码.gps_simulator import route_motion_plan, route_stop_data
+from 功能组件_页面共用代码.vehicle_simulator import route_motion_plan, route_stop_data
 from 功能组件_页面共用代码.order_state import customer_order, init_orders
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -168,4 +168,4 @@ elif moving:
     st.caption("车辆按逐站等待和服务时间停靠；每 30 秒核对订单状态。")
 else:
     st.caption("当前地图不自动更新。需要查看最新调度或发车状态时，点击“更新订单状态”。")
-st.caption("蓝色鲜面条、橙色姜蒜路线均为已确认的道路最短路径。前序站点只显示序号与停留时长；车辆位置为演示仿真，并非车载定位。")
+st.caption("蓝色鲜面条、橙色姜蒜路线均为已确认的道路最短路径。前序站点只显示序号与停留时长；车辆位置为演示仿真，尚未接入北斗导航实时定位。")

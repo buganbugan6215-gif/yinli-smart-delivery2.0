@@ -12,7 +12,7 @@ VERSION_FILE = Path(__file__).with_name("release_version.json")
 def ensure_current_release():
     with _LOCK:
         version = json.loads(VERSION_FILE.read_text(encoding="utf-8"))["version"]
-        for name in ("storage", "warehouses", "order_state", "warehouse_routing", "batch_solver", "arrival_estimate", "batch_dispatch", "live_operations", "maps", "warehouse_ui", "gps_simulator", "customer_dialogue", "order_archive", "ui"):
+        for name in ("storage", "warehouses", "order_state", "warehouse_routing", "batch_solver", "arrival_estimate", "batch_dispatch", "live_operations", "maps", "warehouse_ui", "vehicle_simulator", "customer_dialogue", "order_archive", "ui"):
             # 新进程中的模块交给正常 import；只刷新已完整加载的旧模块。
             # 主动导入全部业务模块会拖慢首屏，并在并发会话启动时撞上半初始化模块。
             module = sys.modules.get(f"功能组件_页面共用代码.{name}")
