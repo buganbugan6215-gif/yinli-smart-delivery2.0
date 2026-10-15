@@ -62,6 +62,7 @@ if not routes:
     st.info("线路尚未确认，确认后会显示本单配送地图。")
     st.stop()
 detailed = st.toggle("显示细支道路（加载更多地图数据）", key="customer-map-roads")
+static_map = st.toggle("地图加载异常时使用备用地图", key="customer-map-static")
 points = [p for _, _, route in routes for feature in route["features"] for p in feature["geometry"]["coordinates"]]
 road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
                max(p[0] for p in points), max(p[1] for p in points))
@@ -116,7 +117,12 @@ def render_live_tracking() -> None:
                 icon=folium.Icon(color="blue" if current["品类"] == "鲜面条" else "orange", icon="truck", prefix="fa"),
             ).add_to(vehicles)
     # 组件会修改传入对象的内部 ID 和图层，使用副本保护缓存底图。
-    st_folium(copy.deepcopy(fmap), use_container_width=True, height=800, returned_objects=[], key=f"tracking-map-{map_key[1]}", feature_group_to_add=vehicles, render=False)
+    display_map = copy.deepcopy(fmap)
+    if static_map:
+        vehicles.add_to(display_map)
+        st.components.v1.html(display_map.get_root().render(), height=800, scrolling=False)
+    else:
+        st_folium(display_map, use_container_width=True, height=800, returned_objects=[], key=f"tracking-map-{map_key[1]}", feature_group_to_add=vehicles, render=False)
     if all(o.get("状态") in {"已送达", "签收完成"} for o in latest):
         st.caption("车辆已到达，自动更新已停止；地图保留在当前页面，可继续缩放查看。")
     elif any(o.get("状态") == "配送途中" for o in latest) and not moving:
