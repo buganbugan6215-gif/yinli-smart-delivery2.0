@@ -74,7 +74,7 @@ road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
 network_margin = 0.12
 network_bounds = (road_bounds[0] - network_margin, road_bounds[1] - network_margin,
                   road_bounds[2] + network_margin, road_bounds[3] + network_margin)
-map_key = ("nearby-v27", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([
+map_key = ("nearby-v28", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([
     routes, detailed,
     [(o["订单编号"], o.get("状态"), o.get("发车时间"), o.get("行驶参数")) for o in group],
 ], sort_keys=True).encode()).hexdigest())
@@ -109,7 +109,7 @@ if cached is None or cached[0] != map_key:
             lon, lat = pause["coordinate"]
             folium.CircleMarker([lat, lon], radius=5, color=PRODUCT_COLORS[product],
                                 fill=True, fill_opacity=1,
-                                tooltip=f"{product} · 第{pause['number']}站 · 停留{wait + service:.1f}分钟").add_to(fmap)
+                                tooltip=f"{product} · 第{pause['number']}站 · 等待{wait:.1f}分钟 · 服务{service:.1f}分钟").add_to(fmap)
         completed = current.get("状态") in {"已送达", "签收完成"}
         marker = folium.Marker(
             timeline[-1][:2] if completed else timeline[0][:2],

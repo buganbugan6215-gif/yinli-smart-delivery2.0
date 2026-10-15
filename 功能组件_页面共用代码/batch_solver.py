@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
 
 from functools import lru_cache
 import gzip

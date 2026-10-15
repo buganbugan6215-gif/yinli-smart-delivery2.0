@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
 
 
 def transfer_info(matrix, rates):

@@ -1,6 +1,7 @@
 """用可手算线路验证预测，含旧批次、等待、高峰、双仓和客户页面。"""
 import copy
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from streamlit.runtime.state.session_state_proxy import SessionStateProxy
 
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.arrival_estimate import arrival_window, estimate_from_plan
+from 功能组件_页面共用代码.gps_simulator import route_motion_plan, route_stop_data
 from 功能组件_页面共用代码.batch_dispatch import _tables
 
 
@@ -61,6 +63,41 @@ def test_second_stop_uses_route_legs_and_previous_wait_and_service():
     assert estimate_from_plan(changed[1], plan, changed)["发车"] < result["发车"]
     plan["距离矩阵_m"][1][2] += 5000
     assert estimate_from_plan(orders[1], plan, orders)["道路里程_km"] == 35
+
+
+def test_map_stop_wait_matches_customer_arrival_after_flexible_departure(tmp_path, monkeypatch):
+    plan, orders = fixture_route()
+    route = plan["线路"][0]
+    features = [{"geometry": {"type": "LineString", "coordinates": coordinates}} for coordinates in (
+        [[104.0, 30.0], [104.1, 30.0]],
+        [[104.1, 30.0], [104.2, 30.0]],
+    )]
+    route["路线GeoJSON"] = {"features": features}
+    orders[0]["期望窗开始_分钟"] = 323
+    orders[1]["状态"] = "配送途中"
+    orders[1]["演示发车"] = True
+    orders[1]["路线GeoJSON"] = {"features": [{"properties": {"route_mode": "Dijkstra路网最短路径"},
+                                                "geometry": feature["geometry"]} for feature in features]}
+    orders[1]["行驶参数"] = plan["参数"]
+    db = tmp_path / "orders.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE delivery_batches (delivery_day TEXT, payload TEXT)")
+        conn.execute("CREATE TABLE orders (order_id TEXT, payload TEXT)")
+        conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", ("2026-10-16", json.dumps(plan)))
+        conn.executemany("INSERT INTO orders VALUES (?, ?)",
+                         [(o["订单编号"], json.dumps(o)) for o in orders])
+    monkeypatch.setattr(state, "_read_db_connection", lambda: sqlite3.connect(db))
+    stops = route_stop_data(orders[1])
+    timeline, pauses = route_motion_plan(orders[1], stops)
+    first = estimate_from_plan(orders[0], plan, orders)
+    second = estimate_from_plan(orders[1], plan, orders)
+    assert stops[0]["departure_minute"] == second["发车_分钟"]
+    assert timeline and len(stops) == 2, (timeline, stops)
+    assert [p["wait_minutes"] for p in pauses] == pytest.approx(
+        [first["本站等待_分钟"], second["本站等待_分钟"]])
+    assert pauses[0]["arrival_seconds"] / 60 == pytest.approx(first["行驶_分钟"])
+    assert pauses[1]["arrival_seconds"] / 60 == pytest.approx(
+        second["行驶_分钟"] + second["前站等待_分钟"] + second["前站服务_分钟"])
 
 
 def test_actual_departure_recomputes_rush_hour_and_absorbed_wait():

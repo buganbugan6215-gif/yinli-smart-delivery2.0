@@ -1,7 +1,7 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
 
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -63,14 +63,28 @@ def route_motion_plan(order: dict[str, Any], stops: list[dict[str, Any]] | None 
     coordinates = route_coordinates(order.get("路线GeoJSON"))
     if len(coordinates) < 2 or min(normal, peak) <= 0:
         return [], []
-    clock = float(order.get("计划发车_分钟", 0))
+    stops = stops or []
+    clock = float(stops[0].get("departure_minute", order.get("计划发车_分钟", 0))) if stops else float(order.get("计划发车_分钟", 0))
     elapsed_seconds = 0.0
     timeline = [[coordinates[0][1], coordinates[0][0], 0.0]]
-    stops = stops or []
     next_stop = 0
     pauses = []
+    leg_end = 0
+    leg_km = None
+    leg_minutes = leg_geometry_km = 0.0
     for index, (start, end) in enumerate(zip(coordinates, coordinates[1:]), 1):
-        minutes = travel_minutes(_haversine_km(start, end), clock, normal, peak)
+        if next_stop < len(stops) and index > leg_end:
+            leg_end = next((j for j in range(index, len(coordinates))
+                            if coordinates[j] == stops[next_stop]["coordinate"]), 0)
+            leg_km = stops[next_stop].get("leg_km")
+            if leg_end and leg_km is not None:
+                leg_geometry_km = sum(_haversine_km(coordinates[j - 1], coordinates[j])
+                                      for j in range(index, leg_end + 1))
+                leg_minutes = travel_minutes(float(leg_km), clock, normal, peak)
+        geometry_km = _haversine_km(start, end)
+        minutes = (leg_minutes * geometry_km / leg_geometry_km
+                   if leg_end and leg_km is not None and leg_geometry_km > 0
+                   else travel_minutes(geometry_km, clock, normal, peak))
         elapsed_seconds += minutes * 60
         clock += minutes
         timeline.append([end[1], end[0], elapsed_seconds])
@@ -87,6 +101,7 @@ def route_motion_plan(order: dict[str, Any], stops: list[dict[str, Any]] | None 
                 clock += dwell
                 timeline.append([end[1], end[0], elapsed_seconds])
             next_stop += 1
+            leg_end = 0
     return timeline, pauses
 
 
@@ -110,23 +125,38 @@ def route_stop_data(order: dict[str, Any]) -> list[dict[str, Any]]:
         route = next((r for r in plan.get("线路", []) if r["线路编号"] == order["线路编号"]), None)
         if not route or order["订单编号"] not in route["订单编号列表"]:
             return []
-        limit = route["订单编号列表"].index(order["订单编号"]) + 1
-        ids = route["订单编号列表"][:limit]
-        placeholders = ",".join("?" for _ in ids)
+        route_ids = route["订单编号列表"]
+        limit = route_ids.index(order["订单编号"]) + 1
+        ids = route_ids[:limit]
+        placeholders = ",".join("?" for _ in route_ids)
         records = {item["订单编号"]: item for (payload,) in conn.execute(
-            f"SELECT payload FROM orders WHERE order_id IN ({placeholders})", tuple(ids)).fetchall()
+            f"SELECT payload FROM orders WHERE order_id IN ({placeholders})", tuple(route_ids)).fetchall()
             if (item := json.loads(payload))}
     features = route.get("路线GeoJSON", {}).get("features", [])
     if len(features) < limit or any(oid not in records for oid in ids):
         return []
+    from 功能组件_页面共用代码.arrival_estimate import estimate_from_plan
+
+    estimate = estimate_from_plan(order, plan, list(records.values()))
+    departure = estimate["发车_分钟"] if estimate else float(order.get("计划发车_分钟", 0))
+    labels = {label: index for index, label in enumerate(plan.get("矩阵标签", []))}
+    previous = 0 if route.get("仓库编号", "D0") == "D0" else labels.get("新增配送点")
     stops = []
     for number, (oid, feature) in enumerate(zip(ids, features), 1):
         coordinates = feature.get("geometry", {}).get("coordinates", [])
         if not coordinates:
             return []
-        stops.append({"number": number, "coordinate": list(map(float, coordinates[-1][:2])),
-                      "earliest": float(records[oid]["期望窗开始_分钟"]),
-                      "service": float(records[oid]["服务时间_分钟"])})
+        stop = {"number": number, "coordinate": list(map(float, coordinates[-1][:2])),
+                "earliest": float(records[oid]["期望窗开始_分钟"]),
+                "service": float(records[oid]["服务时间_分钟"]), "departure_minute": departure}
+        index = labels.get(oid)
+        if previous is not None and index is not None:
+            try:
+                stop["leg_km"] = float(plan["距离矩阵_m"][previous][index]) / 1000
+            except (KeyError, IndexError, TypeError, ValueError):
+                pass
+        previous = index
+        stops.append(stop)
     return stops
 
 

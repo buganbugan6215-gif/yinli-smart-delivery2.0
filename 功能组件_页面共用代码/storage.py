@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
 
 
 def database_url():

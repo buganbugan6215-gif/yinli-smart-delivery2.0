@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from 功能组件_页面共用代码.batch_solver import flexible_departure, travel_minutes
 from 功能组件_页面共用代码.delivery_calendar import as_beijing
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
@@ -104,7 +104,8 @@ def estimate_from_plan(order, plan, orders, now=None):
         source += "（演示发车按原定配送日计算）"
     return {"时间": eta.isoformat(), "标签": _display_time(eta), "来源": source,
             "开始服务": _display_time(start), "完成交付": _display_time(finish),
-            "发车": _display_time(departed), "配送顺序": stop + 1, "道路里程_km": total_km,
+            "发车": _display_time(departed), "发车_分钟": (departed - day).total_seconds() / 60,
+            "配送顺序": stop + 1, "道路里程_km": total_km,
             "行驶_分钟": driving, "前站等待_分钟": prior_wait, "前站服务_分钟": prior_service,
             "本站等待_分钟": wait, "本站服务_分钟": service,
             "平均速度_kmh": normal, "早高峰速度_kmh": peak,
