@@ -104,7 +104,7 @@ def render_live_tracking() -> None:
         if not current.get("线路编号"):
             st.info(f"{current['品类']}：等待工作人员统一确认。")
             continue
-        from 功能组件_页面共用代码.customer_dialogue import arrival_window
+        from 功能组件_页面共用代码.arrival_estimate import arrival_window
         window = arrival_window(current)
         if window:
             st.info(f"{current['品类']} · 预计到达 {window['标签']}")

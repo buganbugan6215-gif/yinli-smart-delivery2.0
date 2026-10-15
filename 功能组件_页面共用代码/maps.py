@@ -8,7 +8,7 @@ import folium
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-dispatch-contact-v27"
+RELEASE_VERSION = "2026-10-15-route-eta-v28"
 
 
 ROOT = Path(__file__).resolve().parents[1]

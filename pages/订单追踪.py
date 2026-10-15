@@ -3,7 +3,7 @@ ensure_current_release()
 
 import streamlit as st
 
-from 功能组件_页面共用代码.customer_dialogue import arrival_window
+from 功能组件_页面共用代码.arrival_estimate import arrival_window
 from 功能组件_页面共用代码.order_state import STATUS_FLOW, CANCELLED_STATUS, cancel_customer_order, customer_order, init_orders, verify_customer_order
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar
 
@@ -72,8 +72,6 @@ if order.get("线路编号"):
     route_cols[0].metric("我的配送线路", order["线路编号"])
     route_cols[1].metric("配送车辆", order["车辆编号"])
     route_cols[2].metric("本单配送顺序", f"第 {order['配送顺序']} 站")
-    minute = int(order.get("计划到达_分钟", 0))
-    st.caption(f"计划到达 {minute//60:02d}:{minute%60:02d}；仅展示本订单信息，不展示同线路其他客户名单。")
 else:
     st.info("本配送日尚未统一确认，确认后将显示您的线路编号和车辆。")
 
@@ -89,11 +87,17 @@ def render_live_eta() -> None:
     window = arrival_window(current)
     if window:
         st.metric("预计到达时间", window["标签"])
-        st.caption(window["来源"] + "；依据已确认线路的道路行驶距离、调度车速、前序站点等待及服务时间计算。")
+        st.caption(window["来源"] + f"；预计 {window['开始服务']} 开始服务，{window['完成交付']} 完成交付。")
+        if window["本站等待_分钟"] > 0:
+            st.info(f"车辆预计提前到站，等待约 {window['本站等待_分钟']:.0f} 分钟后，按您的收货时间开始服务。")
+        with st.expander("查看预计时间的计算"):
+            st.write(f"发车：{window['发车']} · 本单为第 {window['配送顺序']} 站 · 到本站累计道路里程 {window['道路里程_km']:.2f} 公里")
+            st.write(f"预计行驶 {window['行驶_分钟']:.1f} 分钟 + 前站等待 {window['前站等待_分钟']:.1f} 分钟 + 前站服务 {window['前站服务_分钟']:.1f} 分钟")
+            st.caption(f"平均车速 {window['平均速度_kmh']:g} 公里/小时；07:00–09:00 按 {window['早高峰速度_kmh']:g} 公里/小时分段计算。本单服务 {window['本站服务_分钟']:g} 分钟计入完成交付时间。")
         if window["已过期"]:
             st.warning("预计时间已过，工作人员尚未登记送达，请刷新查看最新状态。")
     elif current.get("状态") not in {"已送达", "签收完成"}:
-        st.info("线路确认后显示预计到达时间。")
+        st.info("该线路缺少完整的逐站距离或服务数据，暂时无法计算预计到达时间，请工作人员检查线路。" if current.get("线路编号") else "线路确认后显示预计到达时间。")
 
 
 st.markdown(f"""
@@ -115,8 +119,8 @@ with left:
     st.markdown(f"""
     <div class="detail-sheet motion-reveal">
       <div><span>收货地址</span><b>{order['收货地址']}</b></div>
-      <div><span>期望送达</span><b>{order['期望送达']}</b></div>
-      <div><span>最晚送达</span><b>{order['最晚送达']}</b></div>
+      <div><span>预约最早收货</span><b>{order['期望送达']}</b></div>
+      <div><span>预约最晚收货</span><b>{order['最晚送达']}</b></div>
       <div><span>预估费用</span><b>¥ {float(order.get('预估费用_元', 0)):,.2f}</b></div>
       <div><span>服务时间</span><b>{int(order.get('服务时间_分钟', 0))} 分钟</b></div>
       <div><span>允许送达窗口</span><b>{order.get('最早到达', '—')}—{order.get('最晚到达', '—')}</b></div>

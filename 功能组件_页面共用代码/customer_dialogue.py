@@ -7,29 +7,10 @@ from uuid import uuid4
 
 from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
+from 功能组件_页面共用代码.arrival_estimate import arrival_window
 
-RELEASE_VERSION = "2026-10-15-dispatch-contact-v27"
+RELEASE_VERSION = "2026-10-15-route-eta-v28"
 DONE = {"已送达", "签收完成", "已取消"}
-
-
-def arrival_window(order, now=None):
-    if order.get("状态") in DONE or not order.get("线路编号"):
-        return None
-    demo = bool(order.get("演示发车"))
-    now = as_beijing(now)
-    day = as_beijing(datetime.fromisoformat(order["期望送达日期"]))
-    eta = day + timedelta(minutes=float(order.get("计划到达_分钟", 0)))
-    source = "已确认路线计划（含前序站点服务和等待）"
-    if order.get("发车时间") and not demo:
-        actual_departure = as_beijing(datetime.fromisoformat(order["发车时间"]))
-        planned_departure = day + timedelta(minutes=float(order.get("计划发车_分钟", 360)))
-        eta += actual_departure - planned_departure
-        source = "按实际发车时间修正的计划预测，尚未接入实时路况"
-    if demo:
-        source = "已确认线路的原定配送日计划；演示车辆位置不参与预计时间计算"
-    return {"时间": eta.isoformat(), "来源": source, "标签": f"{eta:%m月%d日 %H:%M}",
-            "已过期": now > eta,
-            "临近": not demo and order.get("状态") == "配送途中" and eta - timedelta(minutes=30) <= now <= eta}
 
 
 def _read(conn, oid):

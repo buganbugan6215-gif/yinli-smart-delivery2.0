@@ -27,27 +27,10 @@ def sample():
             "经度":104.25,"纬度":30.84,"线路编号":"R1","计划到达_分钟":520,"计划发车_分钟":360}
 
 
-def test_eta_confirm_delay_and_access(isolated):
-    order=sample();state.save_order_record(order)
-    now=datetime(2026,10,15,7)
-    window=dialog.arrival_window(order,now)
-    assert window["标签"] == "10月15日 08:40"
-    order["发车时间"]="2026-10-15T06:30:00+08:00"
-    order["状态"]="配送途中"
-    updated=dialog.arrival_window(order,now)
-    assert updated["标签"] == "10月15日 09:10"
-    assert order["期望窗开始_分钟"]==480
-
-
-def test_demo_shows_planned_narrow_window_without_shifting_delivery_day(isolated):
+def test_missing_confirmed_route_does_not_reuse_old_arrival(isolated):
     order=sample()
-    order.update({"演示发车": True, "状态": "配送途中", "发车时间": "2026-10-14T22:00:00+08:00"})
     state.save_order_record(order)
-    window=dialog.arrival_window(order,datetime(2026,10,14,22))
-    assert window is not None
-    assert window["标签"] == "10月15日 08:40"
-    assert "演示" in window["来源"]
-    assert not window["临近"]
+    assert dialog.arrival_window(order, datetime(2026, 10, 15, 7)) is None
 
 
 def test_request_validation_and_staff_reply(isolated):
