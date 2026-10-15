@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-map-date-v33"
+RELEASE_VERSION = "2026-10-15-route-network-v34"
 
 import html
 import inspect
@@ -332,7 +332,6 @@ NAV_ICONS = {
     "pages/成本与绩效.py": ":material/analytics:",
     "pages/车辆与计价.py": ":material/tune:",
     "pages/订单备份与迁移.py": ":material/backup:",
-    "pages/订单清理.py": ":material/delete_sweep:",
 }
 
 
@@ -342,8 +341,7 @@ STAFF_PAGES = [
     ("pages/运营配送地图.py", "配送地图"),
     ("pages/成本与绩效.py", "运营分析"),
     ("pages/车辆与计价.py", "车辆与计价"),
-    ("pages/订单备份与迁移.py", "订单备份与迁移"),
-    ("pages/订单清理.py", "订单清理"),
+    ("pages/订单备份与迁移.py", "订单数据管理"),
 ]
 
 

@@ -134,7 +134,12 @@ def test_customer_dual_submit_and_staff_live_pages(database, monkeypatch):
     state.save_order_record({**existing, "订单编号": "NEW-TEST"})
     app.run()
     assert any("原对比失效" in w.value for w in app.warning)
-    assert len(STAFF_PAGES) == 7 and len(set(p for p, _ in STAFF_PAGES)) == 7
+    assert len(STAFF_PAGES) == 6 and len(set(p for p, _ in STAFF_PAGES)) == 6
+    assert ("pages/订单备份与迁移.py", "订单数据管理") in STAFF_PAGES
+    app.switch_page("pages/订单备份与迁移.py").run()
+    assert not app.exception
+    assert any(b.label == "生成完整业务备份" for b in app.button)
+    assert any(b.label == "一键清空所有订单" and b.disabled for b in app.button)
     for path, _ in STAFF_PAGES:
         assert "load_site_data" not in (ROOT / path).read_text(encoding="utf-8")
 

@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-15-map-date-v33"
+RELEASE_VERSION = "2026-10-15-route-network-v34"
 
 
 def database_url():

@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-map-date-v33"
+RELEASE_VERSION = "2026-10-15-route-network-v34"
 
 from functools import lru_cache
 import gzip
@@ -85,7 +85,40 @@ def travel_minutes(km, start, normal=60.0, peak=30.0):
     return now - start
 
 
+def flexible_departure(minimum, evaluate, target_wait=5):
+    """在满足全部时间窗的前提下，把整条线路的到站等待压到目标分钟数。"""
+    minimum = int(math.ceil(minimum))
+    first = evaluate(minimum)
+    if first is None or first["wait_minutes"] <= target_wait:
+        return first
+    low, high = minimum, 1439
+    best = first
+    while low < high:
+        mid = (low + high + 1) // 2
+        candidate = evaluate(mid)
+        if candidate is None:
+            high = mid - 1
+        else:
+            low, best = mid, candidate
+    if best["wait_minutes"] > target_wait:
+        return best
+    low, high = minimum, int(best["departure"])
+    while low < high:
+        mid = (low + high) // 2
+        candidate = evaluate(mid)
+        if candidate is not None and candidate["wait_minutes"] <= target_wait:
+            high, best = mid, candidate
+        else:
+            low = mid + 1
+    return best if int(best["departure"]) == low else evaluate(low)
+
+
 def route_schedule(sequence, orders, matrix, vehicle, departure, rates):
+    minimum = max(departure, vehicle.get("ready", 0))
+    return flexible_departure(minimum, lambda minute: _route_schedule_at(sequence, orders, matrix, vehicle, minute, rates))
+
+
+def _route_schedule_at(sequence, orders, matrix, vehicle, departure, rates):
     if len({orders[i-1]["品类"] for i in sequence}) > 1:
         return None
     load = sum(float(orders[i-1]["配送重量_kg"]) for i in sequence)
@@ -135,7 +168,7 @@ def route_schedule(sequence, orders, matrix, vehicle, departure, rates):
             value = ginger*rates["生姜单价_元每kg"] + garlic*rates["大蒜单价_元每kg"]
         loss += value*loss_rate
     cooling = (travel_sum+wait_sum)/60*rates["配送制冷系数_元每小时"] + service_sum/60*rates["服务制冷系数_元每小时"]
-    return {"km": km, "load": load, "arrivals": arrivals, "return_minute": clock,
+    return {"km": km, "load": load, "arrivals": arrivals, "return_minute": clock, "wait_minutes": wait_sum,
             "departure": departure, "transport": km*vehicle["per_km"], "cooling": cooling, "loss": loss,
             "variable": km*vehicle["per_km"]+cooling+loss}
 

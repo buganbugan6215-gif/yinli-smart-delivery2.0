@@ -65,7 +65,8 @@ with order_tab:
     elif not batch:
         plan = draft
         saved_minute = int(plan["发车分钟"]) if plan else 360
-        departure = st.time_input("计划发车时间", time((saved_minute // 60) % 24, saved_minute % 60))
+        departure = st.time_input("最早发车时间", time((saved_minute // 60) % 24, saved_minute % 60))
+        st.caption("各线路结合订单收货时间、道路里程和车速自动安排发车，尽量减少车辆到站后的等待。")
         if not closed:
             st.info("可提前确认当前全部订单；确认后该配送日立即停止接单，新订单需选择更晚日期。")
         if pending:

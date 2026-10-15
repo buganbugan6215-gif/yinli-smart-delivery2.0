@@ -80,6 +80,7 @@ def real_plan():
 
 def test_real_road_matrix_and_customer_projection(real_plan):
     batch.validate_result(real_plan, samples())
+    assert all(route["发车时间_分钟"] > real_plan["发车分钟"] for route in real_plan["线路"])
     assert len(real_plan["距离矩阵_m"]) == 4
     assert sum(len(r["订单编号列表"]) for r in real_plan["线路"]) == 3
     assert len(real_plan["线路"]) < 3  # 多单合并到配送线路，不是三次独立直达配送。

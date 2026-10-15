@@ -2,7 +2,7 @@
 import math
 import copy
 
-RELEASE_VERSION = "2026-10-15-map-date-v33"
+RELEASE_VERSION = "2026-10-15-route-network-v34"
 
 
 def transfer_info(matrix, rates):
@@ -63,7 +63,7 @@ def cost_summary(routes, transfers, rates, count):
 
 
 def allocate(orders, matrix, rates, departure, strategy, count):
-    from 功能组件_页面共用代码.batch_solver import route_schedule
+    from 功能组件_页面共用代码.batch_solver import _route_schedule_at, route_schedule
     from 功能组件_页面共用代码.warehouses import depots, config
     depots(count)
     base_ready = config()["规则"]["原中心货物就绪_min"]
@@ -96,10 +96,10 @@ def allocate(orders, matrix, rates, departure, strategy, count):
                         depot_options = [seed]
                     for depot in depot_options:
                         vehicle = {**v, "depot": depot, "ready": ready[depot]}
-                        old = route_schedule(v["sequence"], orders, matrix, vehicle, departure, rates)
+                        old = _route_schedule_at(v["sequence"], orders, matrix, vehicle, departure, rates)
                         for pos in range(len(v["sequence"])+1):
                             trial = v["sequence"][:pos]+[customer]+v["sequence"][pos:]
-                            schedule = route_schedule(trial, orders, matrix, vehicle, departure, rates)
+                            schedule = _route_schedule_at(trial, orders, matrix, vehicle, departure, rates)
                             if schedule is None:
                                 continue
                             increment = schedule["variable"]-old["variable"]

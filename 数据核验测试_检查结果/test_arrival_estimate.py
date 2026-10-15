@@ -36,29 +36,31 @@ def test_arrival_is_not_clamped_to_0523_and_service_is_separate():
     plan, orders = fixture_route()
     orders[0]["期望窗开始_分钟"] = orders[0]["计划到达_分钟"] = 323
     result = estimate_from_plan(orders[0], plan, orders)
-    # 04:30 + 20km / 60km/h = 04:50；等到05:23，再服务15分钟。
-    assert result["标签"] == "10月16日 04:50"
-    assert result["开始服务"] == "10月16日 05:23"
-    assert result["完成交付"] == "10月16日 05:38"
-    assert result["本站等待_分钟"] == 33
+    # 同一车还有后续订单，发车推迟至05:10，前站不再提前等待33分钟。
+    assert result["发车"] == "10月16日 05:10"
+    assert result["标签"] == "10月16日 05:30"
+    assert result["开始服务"] == "10月16日 05:30"
+    assert result["完成交付"] == "10月16日 05:45"
+    assert result["本站等待_分钟"] == 0
     assert result["道路里程_km"] == 20
 
 
 def test_second_stop_uses_route_legs_and_previous_wait_and_service():
     plan, orders = fixture_route()
     result = estimate_from_plan(orders[1], plan, orders)
-    # 04:30 + 20 + 等待10 + 服务15 + 行驶10 = 05:25。
-    assert result["标签"] == "10月16日 05:25"
+    # 按整条线路调整发车，第二站只提前约5分钟到达。
+    assert result["标签"] == "10月16日 05:55"
     assert result["道路里程_km"] == 30  # 不是仓库直接到B的500km，也不是返程距离。
     assert result["行驶_分钟"] == 30
-    assert result["前站等待_分钟"] == 10
+    assert result["前站等待_分钟"] == 0
+    assert result["本站等待_分钟"] <= 5
     assert result["前站服务_分钟"] == 15
     assert result["完成交付"] == "10月16日 06:10"
     changed = copy.deepcopy(orders)
     changed[0]["服务时间_分钟"] += 7
-    assert estimate_from_plan(changed[1], plan, changed)["标签"] == "10月16日 05:32"
+    assert estimate_from_plan(changed[1], plan, changed)["发车"] < result["发车"]
     plan["距离矩阵_m"][1][2] += 5000
-    assert estimate_from_plan(orders[1], plan, orders)["标签"] == "10月16日 05:30"
+    assert estimate_from_plan(orders[1], plan, orders)["道路里程_km"] == 35
 
 
 def test_actual_departure_recomputes_rush_hour_and_absorbed_wait():
@@ -73,7 +75,8 @@ def test_actual_departure_recomputes_rush_hour_and_absorbed_wait():
     orders[1]["发车时间"] = "2026-10-16T05:30:00+08:00"
     after = estimate_from_plan(orders[1], plan, orders)
     assert before["标签"] == after["标签"] == "10月16日 08:35"
-    assert before["前站等待_分钟"] - after["前站等待_分钟"] == 60
+    assert before["前站等待_分钟"] <= 5
+    assert after["前站等待_分钟"] > 100
 
 
 def test_second_warehouse_and_demo_date_and_missing_input():
@@ -86,7 +89,7 @@ def test_second_warehouse_and_demo_date_and_missing_input():
     plan["线路"][0]["仓库编号"] = "D6"
     orders[0].update({"演示发车": True, "状态": "配送途中", "发车时间": "2026-10-15T11:00:00+08:00"})
     result = estimate_from_plan(orders[0], plan, orders, datetime(2026, 10, 15, 11))
-    assert result["标签"] == "10月16日 04:35"
+    assert result["标签"] == "10月16日 05:30"
     assert result["道路里程_km"] == 5
     assert "演示" in result["来源"]
     assert not result["临近"]
@@ -109,12 +112,12 @@ def test_old_confirmed_batch_and_customer_ui_use_recalculated_eta(tmp_path, monk
     with state._db_connection() as conn:
         _tables(conn)
         conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", (plan["配送日期"], json.dumps(plan)))
-    assert arrival_window(orders[0])["标签"] == "10月16日 04:50"
+    assert arrival_window(orders[0])["标签"] == "10月16日 05:30"
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=30).run()
     app.session_state["verified_order_ids"] = ["A"]
     app.switch_page("pages/订单追踪.py").run()
     assert not app.exception
-    assert next(m.value for m in app.metric if m.label == "预计到达时间") == "10月16日 04:50"
-    assert any("05:23" in c.value and "05:38" in c.value for c in app.caption)
+    assert next(m.value for m in app.metric if m.label == "预计到达时间") == "10月16日 05:30"
+    assert any("05:30" in c.value and "05:45" in c.value for c in app.caption)
     assert "00000001234" not in str(app.get("markdown"))
     assert state.find_order("A", include_saved=True)["期望窗开始_分钟"] == 323

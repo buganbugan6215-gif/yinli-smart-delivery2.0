@@ -3,10 +3,10 @@ import json
 import math
 from datetime import datetime, timedelta
 
-from 功能组件_页面共用代码.batch_solver import travel_minutes
+from 功能组件_页面共用代码.batch_solver import flexible_departure, travel_minutes
 from 功能组件_页面共用代码.delivery_calendar import as_beijing
 
-RELEASE_VERSION = "2026-10-15-map-date-v33"
+RELEASE_VERSION = "2026-10-15-route-network-v34"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
@@ -52,6 +52,26 @@ def estimate_from_plan(order, plan, orders, now=None):
             clock = (departed - day).total_seconds() / 60
         else:
             clock = float(route.get("发车时间_分钟", order.get("计划发车_分钟", plan.get("发车分钟"))))
+            if all(oid in records for oid in route["订单编号列表"]):
+                def evaluate(minute):
+                    current_clock, last, total_wait = minute, previous, 0.0
+                    for route_oid in route["订单编号列表"]:
+                        route_order = records[route_oid]
+                        index = indices[route_oid]
+                        current_clock += travel_minutes(float(plan["距离矩阵_m"][last][index]) / 1000,
+                                                        current_clock, normal, peak)
+                        wait = max(0.0, float(route_order["期望窗开始_分钟"]) - current_clock)
+                        current_clock += wait
+                        if current_clock > float(route_order["期望窗结束_分钟"]) + 1e-8:
+                            return None
+                        total_wait += wait
+                        current_clock += float(route_order["服务时间_分钟"])
+                        last = index
+                    return {"departure": minute, "wait_minutes": total_wait}
+
+                adjusted = flexible_departure(clock, evaluate)
+                if adjusted:
+                    clock = adjusted["departure"]
             departed = day + timedelta(minutes=clock)
         total_km = driving = prior_wait = prior_service = 0.0
         for oid in sequence:
@@ -79,7 +99,7 @@ def estimate_from_plan(order, plan, orders, now=None):
         # 历史方案缺失输入时不拿预约时间冒充预测。
         return None
     current = as_beijing(now)
-    source = "按实际发车时间逐站重算" if actual else "按计划发车时间逐站计算"
+    source = "按实际发车时间逐站重算" if actual else "按各线路调整的计划发车时间逐站计算"
     if demo:
         source += "（演示发车按原定配送日计算）"
     return {"时间": eta.isoformat(), "标签": _display_time(eta), "来源": source,
@@ -107,7 +127,7 @@ def arrival_window(order, now=None):
         route = next((r for r in plan.get("线路", []) if r["线路编号"] == order["线路编号"]), None)
         if not route or order["订单编号"] not in route["订单编号列表"]:
             return None
-        sequence = route["订单编号列表"][:route["订单编号列表"].index(order["订单编号"]) + 1]
+        sequence = route["订单编号列表"]
         placeholders = ",".join("?" for _ in sequence)
         records = conn.execute(f"SELECT payload FROM orders WHERE order_id IN ({placeholders})", tuple(sequence)).fetchall()
     return estimate_from_plan(order, plan, [json.loads(r[0]) for r in records], now)
