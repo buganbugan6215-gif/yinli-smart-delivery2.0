@@ -32,6 +32,7 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     monkeypatch.setattr(st, "fragment", fragment)
     monkeypatch.setattr(streamlit_folium, "_component_func", lambda **kwargs: components.append(kwargs))
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    app.session_state["customer-map-static"] = False
     app.switch_page("pages/配送网络地图.py").run()
     assert not app.exception
     assert intervals[-1] == "30s"

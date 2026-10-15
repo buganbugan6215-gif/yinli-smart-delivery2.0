@@ -9,7 +9,7 @@ from branca.element import MacroElement, Template
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v37"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
 
 
 ROOT = Path(__file__).resolve().parents[1]

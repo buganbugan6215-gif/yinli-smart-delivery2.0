@@ -187,6 +187,7 @@ def test_group_map_colors_privacy_and_stop_timer(monkeypatch):
     monkeypatch.setattr(streamlit_folium, "_component_func", lambda **kw: components.append(kw))
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60).run()
     app.session_state["active_order_id"] = "MAP-N"
+    app.session_state["customer-map-static"] = False
     app.switch_page("pages/配送网络地图.py").run()
     assert not app.exception
     assert intervals[-1] == "30s"

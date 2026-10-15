@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from 功能组件_页面共用代码.batch_solver import flexible_departure, travel_minutes
 from 功能组件_页面共用代码.delivery_calendar import as_beijing
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v37"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v38"
 DONE = {"已送达", "签收完成", "已取消"}
 
 

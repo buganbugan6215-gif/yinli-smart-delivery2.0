@@ -63,7 +63,7 @@ if not routes:
     st.info("线路尚未确认，确认后会显示本单配送地图。")
     st.stop()
 detailed = st.toggle("显示细支道路（加载更多地图数据）", key="customer-map-roads")
-static_map = st.toggle("地图加载异常时使用备用地图", key="customer-map-static")
+static_map = st.toggle("使用轻量地图（推荐）", value=True, key="customer-map-static")
 demo_orders = any(o.get("演示发车") for o in group)
 st.caption("地图标记按已确认道路路线的逐段距离、平均车速和早高峰车速连续移动；"
            + ("可在地图内连续调节演示倍率或从起点重播。" if demo_orders else "")
