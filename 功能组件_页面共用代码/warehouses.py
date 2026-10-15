@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 CONFIG = Path(__file__).resolve().parents[1] / "路网数据" / "仓配参数.json"
 
 
@@ -17,9 +17,11 @@ def depots(count=1):
 
 
 def selection(day):
-    from 功能组件_页面共用代码.order_state import _db_connection
-    with _db_connection() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+    from 功能组件_页面共用代码.order_state import _read_db_connection
+    from 功能组件_页面共用代码.storage import database_url
+    with _read_db_connection() as conn:
+        if not database_url():
+            conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
         row = conn.execute("SELECT count FROM warehouse_selection WHERE day=?", (str(day),)).fetchone()
     return int(row[0]) if row else 1
 

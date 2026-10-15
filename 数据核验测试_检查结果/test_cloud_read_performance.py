@@ -24,6 +24,7 @@ def test_cloud_orders_cache_reuses_read_and_keeps_local_reads_fresh(monkeypatch,
 
     monkeypatch.setattr(storage, "database_url", lambda: "postgresql://cache-test")
     monkeypatch.setattr(order_state, "_db_connection", FakeConnection)
+    monkeypatch.setattr(order_state, "_read_db_connection", FakeConnection)
     order_state._cached_cloud_orders.clear()
     try:
         assert order_state.load_order_records() == [{"订单编号": "A"}]
@@ -57,6 +58,7 @@ def test_pricing_write_clears_cloud_cache(monkeypatch):
 
     monkeypatch.setattr(storage, "database_url", lambda: "postgresql://pricing-cache-test")
     monkeypatch.setattr(order_state, "_db_connection", FakeConnection)
+    monkeypatch.setattr(order_state, "_read_db_connection", FakeConnection)
     order_state._cached_cloud_pricing.clear()
     try:
         initial = order_state.pricing_settings()
@@ -93,6 +95,25 @@ def test_cloud_connection_returns_lease_to_pool(monkeypatch):
     with storage.CloudConnection("postgresql://pool-test") as conn:
         conn.execute("SELECT 1")
     assert events == ["checkout", "return"]
+
+
+def test_cloud_read_does_not_wait_for_write_lock(monkeypatch):
+    statements = []
+
+    class FakeRawConnection:
+        def execute(self, sql, *_):
+            statements.append(sql)
+            return SimpleNamespace(fetchall=lambda: [])
+
+    @contextmanager
+    def lease():
+        yield FakeRawConnection()
+
+    monkeypatch.setattr(storage, "_cloud_pool", lambda _url: SimpleNamespace(connection=lease))
+    with storage.CloudConnection("postgresql://pool-test", read_only=True) as conn:
+        conn.execute("SELECT payload FROM orders")
+    assert "SELECT pg_advisory_xact_lock(731902617)" not in statements
+    assert not any(sql.startswith("CREATE ") for sql in statements)
 
 
 def test_legacy_excel_is_not_reimported_on_each_staff_refresh(monkeypatch, tmp_path):

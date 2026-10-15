@@ -9,7 +9,7 @@ from branca.element import MacroElement, Template
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,12 +50,21 @@ class AnimatedVehicle(MacroElement):
     _template = Template("""
     {% macro script(this, kwargs) %}
     (function () {
+      const map = {{ this._parent.get_name() }};
       const marker = {{ this.marker_name }};
       const path = {{ this.timeline_json }};
       const started = {{ this.started_ms }};
       const factor = {{ this.factor }};
+      const demo = {{ this.demo_json }};
+      let lastDrawn = 0;
+      let running = false;
       function position() {
-        const elapsed = Math.max(0, (Date.now() - started) / 1000 * factor);
+        const now = Date.now();
+        if (now - lastDrawn < 32) { requestAnimationFrame(position); return; }
+        lastDrawn = now;
+        const elapsed = demo && map._yinliPlayback
+          ? map._yinliPlayback.elapsed(now)
+          : Math.max(0, (now - started) / 1000 * factor);
         let low = 0, high = path.length - 1;
         while (low < high) {
           const mid = Math.floor((low + high) / 2);
@@ -69,18 +78,69 @@ class AnimatedVehicle(MacroElement):
         marker.setLatLng([before[0] + (after[0] - before[0]) * ratio,
                           before[1] + (after[1] - before[1]) * ratio]);
         if (elapsed < path[path.length - 1][2]) requestAnimationFrame(position);
+        else running = false;
       }
-      requestAnimationFrame(position);
+      function play() { if (!running) { running = true; requestAnimationFrame(position); } }
+      if (demo) map.on('yinli:replay', play);
+      play();
     })();
     {% endmacro %}
     """)
 
-    def __init__(self, marker: folium.Marker, timeline: list[list[float]], started_ms: int, factor: int) -> None:
+    def __init__(self, marker: folium.Marker, timeline: list[list[float]], started_ms: int, factor: int, demo: bool = False) -> None:
         super().__init__()
         self.marker_name = marker.get_name()
         self.timeline_json = json.dumps(timeline)
         self.started_ms = started_ms
         self.factor = factor
+        self.demo_json = json.dumps(demo)
+
+
+class PlaybackControl(MacroElement):
+    """浏览器内调速，改变倍率时保留已走过的道路时间。"""
+
+    _template = Template("""
+    {% macro script(this, kwargs) %}
+    (function () {
+      const map = {{ this._parent.get_name() }};
+      let factor = 10, anchor = Date.now();
+      let elapsedAtAnchor = 0;
+      map._yinliPlayback = {
+        elapsed(now) { return Math.max(0, elapsedAtAnchor + (now - anchor) / 1000 * factor); },
+        setFactor(value) {
+          const now = Date.now();
+          elapsedAtAnchor = this.elapsed(now);
+          anchor = now;
+          factor = value;
+        },
+        replay() { elapsedAtAnchor = 0; anchor = Date.now(); map.fire('yinli:replay'); }
+      };
+      const panel = document.createElement('div');
+      panel.className = 'yinli-playback';
+      panel.innerHTML = '<label for="yinli-speed">演示行驶倍率 <strong>10.0×</strong></label>' +
+        '<input id="yinli-speed" type="range" min="1" max="20" step="0.1" value="10" aria-label="演示行驶倍率">' +
+        '<button type="button">从起点重播</button>';
+      Object.assign(panel.style, {position:'absolute', top:'12px', left:'58px', right:'50px', zIndex:'1000',
+        display:'flex', alignItems:'center', gap:'12px', padding:'9px 14px', borderRadius:'10px',
+        background:'rgba(239,244,252,.96)', color:'#1d2a3a', boxShadow:'0 2px 12px #23385130'});
+      const input = panel.querySelector('input');
+      input.style.flex = '1';
+      panel.querySelector('button').style.cssText = 'border:1px solid #a9b9d2;border-radius:7px;padding:5px 10px;background:#fff;color:#123579;cursor:pointer';
+      const label = panel.querySelector('strong');
+      input.addEventListener('input', () => {
+        map._yinliPlayback.setFactor(Number(input.value));
+        label.textContent = Number(input.value).toFixed(1) + '×';
+      });
+      panel.querySelector('button').addEventListener('click', () => map._yinliPlayback.replay());
+      L.DomEvent.disableClickPropagation(panel);
+      L.DomEvent.disableScrollPropagation(panel);
+      map.getContainer().appendChild(panel);
+    })();
+    {% endmacro %}
+    """)
+
+    def __init__(self) -> None:
+        super().__init__()
 
 
 @lru_cache(maxsize=4)

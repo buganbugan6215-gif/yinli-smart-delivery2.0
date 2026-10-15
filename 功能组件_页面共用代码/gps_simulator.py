@@ -1,7 +1,7 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -50,10 +50,10 @@ def _cumulative_distances(coordinates: list[list[float]]) -> list[float]:
     return cumulative
 
 
-def route_motion_timeline(order: dict[str, Any]) -> list[list[float]]:
-    """每个道路坐标对应的累计行驶秒数；地图缩放只改变像素位移。"""
+def route_motion_plan(order: dict[str, Any], stops: list[dict[str, Any]] | None = None) -> tuple[list[list[float]], list[dict[str, Any]]]:
+    """道路行驶与逐站等待、服务共用一条时间轴。"""
     if not is_dijkstra_route(order):
-        return []
+        return [], []
     from 功能组件_页面共用代码.batch_solver import travel_minutes
     from 功能组件_页面共用代码.order_state import pricing_settings
 
@@ -62,16 +62,72 @@ def route_motion_timeline(order: dict[str, Any]) -> list[list[float]]:
     peak = float(rates["早高峰速度_kmh"])
     coordinates = route_coordinates(order.get("路线GeoJSON"))
     if len(coordinates) < 2 or min(normal, peak) <= 0:
-        return []
+        return [], []
     clock = float(order.get("计划发车_分钟", 0))
     elapsed_seconds = 0.0
     timeline = [[coordinates[0][1], coordinates[0][0], 0.0]]
-    for start, end in zip(coordinates, coordinates[1:]):
+    stops = stops or []
+    next_stop = 0
+    pauses = []
+    for index, (start, end) in enumerate(zip(coordinates, coordinates[1:]), 1):
         minutes = travel_minutes(_haversine_km(start, end), clock, normal, peak)
         elapsed_seconds += minutes * 60
         clock += minutes
         timeline.append([end[1], end[0], elapsed_seconds])
-    return timeline
+        if next_stop < len(stops) and end == stops[next_stop]["coordinate"]:
+            stop = stops[next_stop]
+            wait = max(0.0, float(stop["earliest"]) - clock)
+            service = max(0.0, float(stop["service"]))
+            dwell = wait + service
+            pauses.append({"number": int(stop["number"]), "coordinate": end,
+                           "wait_minutes": wait, "service_minutes": service,
+                           "arrival_seconds": elapsed_seconds, "departure_seconds": elapsed_seconds + dwell * 60})
+            if dwell:
+                elapsed_seconds += dwell * 60
+                clock += dwell
+                timeline.append([end[1], end[0], elapsed_seconds])
+            next_stop += 1
+    return timeline, pauses
+
+
+def route_motion_timeline(order: dict[str, Any], stops: list[dict[str, Any]] | None = None) -> list[list[float]]:
+    return route_motion_plan(order, stops)[0]
+
+
+def route_stop_data(order: dict[str, Any]) -> list[dict[str, Any]]:
+    """从已确认线路读取到本单为止的站点，仅返回序号、坐标和时长。"""
+    if not order.get("线路编号") or not order.get("配送顺序"):
+        return []
+    import json
+    from 功能组件_页面共用代码.order_state import _read_db_connection
+
+    with _read_db_connection() as conn:
+        row = conn.execute("SELECT payload FROM delivery_batches WHERE delivery_day=?",
+                           (str(order["期望送达日期"]),)).fetchone()
+        if not row:
+            return []
+        plan = json.loads(row[0])
+        route = next((r for r in plan.get("线路", []) if r["线路编号"] == order["线路编号"]), None)
+        if not route or order["订单编号"] not in route["订单编号列表"]:
+            return []
+        limit = route["订单编号列表"].index(order["订单编号"]) + 1
+        ids = route["订单编号列表"][:limit]
+        placeholders = ",".join("?" for _ in ids)
+        records = {item["订单编号"]: item for (payload,) in conn.execute(
+            f"SELECT payload FROM orders WHERE order_id IN ({placeholders})", tuple(ids)).fetchall()
+            if (item := json.loads(payload))}
+    features = route.get("路线GeoJSON", {}).get("features", [])
+    if len(features) < limit or any(oid not in records for oid in ids):
+        return []
+    stops = []
+    for number, (oid, feature) in enumerate(zip(ids, features), 1):
+        coordinates = feature.get("geometry", {}).get("coordinates", [])
+        if not coordinates:
+            return []
+        stops.append({"number": number, "coordinate": list(map(float, coordinates[-1][:2])),
+                      "earliest": float(records[oid]["期望窗开始_分钟"]),
+                      "service": float(records[oid]["服务时间_分钟"])})
+    return stops
 
 
 def _position_at_distance(

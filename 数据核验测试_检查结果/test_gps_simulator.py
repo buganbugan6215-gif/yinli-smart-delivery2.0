@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
+import json
+import sqlite3
 import pytest
 
-from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates, route_motion_timeline
+from 功能组件_页面共用代码.gps_simulator import arrival_risk, get_tracking_snapshot, route_coordinates, route_motion_plan, route_motion_timeline, route_stop_data
 from 功能组件_页面共用代码.batch_solver import travel_minutes
 
 
@@ -47,6 +49,44 @@ def test_motion_timeline_uses_road_length_and_peak_speed():
     assert timeline[0][2] == 0
     assert timeline[-1][2] == pytest.approx(travel_minutes(snapshot["total_km"], 419, 60, 30) * 60)
     assert timeline[-1][:2] == [30.0, 104.1]
+
+
+def test_motion_pauses_at_each_station_for_wait_and_service():
+    order, _ = _order()
+    order["计划发车_分钟"] = 360
+    order["行驶参数"] = {"平均速度_kmh": 60, "早高峰速度_kmh": 30}
+    order["路线GeoJSON"]["features"][0]["geometry"]["coordinates"] = [[104.0, 30.0], [104.05, 30.0], [104.1, 30.0]]
+    stops = [{"number": 1, "coordinate": [104.05, 30.0], "earliest": 375, "service": 8},
+             {"number": 2, "coordinate": [104.1, 30.0], "earliest": 0, "service": 12}]
+    timeline, pauses = route_motion_plan(order, stops)
+    assert len(pauses) == 2
+    assert pauses[0]["wait_minutes"] > 0
+    assert pauses[0]["service_minutes"] == 8
+    assert timeline[1][:2] == timeline[2][:2]
+    assert timeline[2][2] - timeline[1][2] == pytest.approx(60 * (pauses[0]["wait_minutes"] + 8))
+    assert timeline[-1][2] - timeline[-2][2] == pytest.approx(12 * 60)
+
+
+def test_stop_data_uses_confirmed_route_without_customer_identity(monkeypatch, tmp_path):
+    from 功能组件_页面共用代码 import order_state
+
+    db = tmp_path / "orders.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE delivery_batches (delivery_day TEXT, payload TEXT)")
+        conn.execute("CREATE TABLE orders (order_id TEXT, payload TEXT)")
+        route = {"线路编号": "R1", "订单编号列表": ["A", "B"], "路线GeoJSON": {"features": [
+            {"geometry": {"coordinates": [[104.0, 30.0], [104.05, 30.0]]}},
+            {"geometry": {"coordinates": [[104.05, 30.0], [104.1, 30.0]]}},
+        ]}}
+        conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", ("2026-10-16", json.dumps({"线路": [route]})))
+        for oid, service in (("A", 8), ("B", 12)):
+            conn.execute("INSERT INTO orders VALUES (?, ?)", (oid, json.dumps({"订单编号": oid, "客户名称": oid,
+                "期望窗开始_分钟": 360, "服务时间_分钟": service})))
+    monkeypatch.setattr(order_state, "_read_db_connection", lambda: sqlite3.connect(db))
+    stops = route_stop_data({"订单编号": "B", "线路编号": "R1", "配送顺序": 2, "期望送达日期": "2026-10-16"})
+    assert [stop["service"] for stop in stops] == [8, 12]
+    assert [stop["number"] for stop in stops] == [1, 2]
+    assert all("客户名称" not in stop and "订单编号" not in stop for stop in stops)
 
 
 def test_non_dijkstra_route_is_rejected():

@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import streamlit as st
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 
 def database_url():
@@ -40,15 +40,16 @@ def postgres_sql(sql):
 
 
 class CloudConnection:
-    def __init__(self, url):
+    def __init__(self, url, read_only=False):
         try:
             self._lease = _cloud_pool(url).connection()
             self.conn = self._lease.__enter__()
-            # 所有业务事务遵守同一把锁，保护拆单、确认及客户反馈的原子更新。
             self.conn.execute("SET LOCAL lock_timeout = '15s'")
             self.conn.execute("SET LOCAL statement_timeout = '30s'")
-            self.conn.execute("SELECT pg_advisory_xact_lock(731902617)")
-            self.conn.execute("CREATE SCHEMA IF NOT EXISTS yinli_private")
+            if not read_only:
+                # 仅写入事务串行化；普通状态查询不应排队等调度写入。
+                self.conn.execute("SELECT pg_advisory_xact_lock(731902617)")
+                self.conn.execute("CREATE SCHEMA IF NOT EXISTS yinli_private")
             self.conn.execute("SET LOCAL search_path TO yinli_private")
         except Exception:
             if hasattr(self, "conn"):
@@ -80,16 +81,32 @@ def _cloud_pool(url):
                           min_size=0, max_size=4, timeout=10, open=True)
 
 
-def connect(path):
+@st.cache_resource(show_spinner=False)
+def _initialize_cloud_storage(url):
+    """每个进程只建一次基础表，普通查询不重复执行 DDL。"""
+    with CloudConnection(url) as connection:
+        connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS delivery_batches (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS delivery_drafts (delivery_day TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        connection.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+    return True
+
+
+def connect(path, read_only=False):
     url = database_url()
     if url:
-        connection = CloudConnection(url)
+        if read_only:
+            _initialize_cloud_storage(url)
+        connection = CloudConnection(url, read_only=read_only)
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(path, timeout=15, factory=LocalConnection)
-        connection.execute("PRAGMA journal_mode=WAL")
+        if not read_only:
+            connection.execute("PRAGMA journal_mode=WAL")
     try:
-        connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
+        if not read_only:
+            connection.execute("CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, payload TEXT NOT NULL)")
     except Exception:
         connection.__exit__(*sys.exc_info())
         raise

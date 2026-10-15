@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 from datetime import date, datetime
 import json
@@ -29,6 +29,11 @@ ORDER_DB_PATH = ORDER_DATA_DIR / "订单状态.db"
 DEPOT_LON, DEPOT_LAT = 104.26104981303031, 30.851137170192068
 _EXCEL_MIGRATION_LOCK = threading.Lock()
 _MIGRATED_EXCEL_KEYS: set[tuple[Any, ...]] = set()
+
+
+def invalidate_order_cache() -> None:
+    _cached_cloud_orders.clear()
+    _cached_cloud_order_ids.clear()
 
 
 def staff_password() -> str | None:
@@ -84,8 +89,7 @@ def _pricing_settings_uncached() -> dict[str, float]:
     try:
         from 功能组件_页面共用代码.storage import database_url
         if database_url():
-            with _db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+            with _read_db_connection() as conn:
                 row = conn.execute("SELECT payload FROM app_settings WHERE name=?", ("pricing",)).fetchone()
             saved = json.loads(row[0]) if row else {}
         else:
@@ -229,6 +233,13 @@ def _db_connection() -> sqlite3.Connection:
     return connect(ORDER_DB_PATH)
 
 
+def _read_db_connection() -> sqlite3.Connection:
+    from 功能组件_页面共用代码.storage import connect, database_url
+
+    # 本地首次访问仍需建表；云端表由写入路径初始化。
+    return connect(ORDER_DB_PATH, read_only=bool(database_url()))
+
+
 def save_order_record(order: dict[str, Any]) -> None:
     payload = json.dumps(order, ensure_ascii=False, default=str)
     with _db_connection() as connection:
@@ -236,7 +247,7 @@ def save_order_record(order: dict[str, Any]) -> None:
             "INSERT INTO orders(order_id, updated_at, payload) VALUES (?, ?, ?) ON CONFLICT(order_id) DO UPDATE SET updated_at=excluded.updated_at, payload=excluded.payload",
             (str(order.get("订单编号")), datetime.now().isoformat(timespec="seconds"), payload),
         )
-    _cached_cloud_orders.clear()
+    invalidate_order_cache()
 
 
 def load_order_records() -> list[dict[str, Any]]:
@@ -252,8 +263,16 @@ def _cached_cloud_orders(scope: str) -> list[dict[str, Any]]:
     return _load_order_records_uncached()
 
 
+@st.cache_data(ttl=2, show_spinner=False)
+def _cached_cloud_order_ids(scope: str, ids: tuple[str, ...]) -> list[dict[str, Any]]:
+    placeholders = ",".join("?" for _ in ids)
+    with _read_db_connection() as connection:
+        rows = connection.execute(f"SELECT payload FROM orders WHERE order_id IN ({placeholders})", ids).fetchall()
+    return [json.loads(row[0]) for row in rows]
+
+
 def _load_order_records_uncached() -> list[dict[str, Any]]:
-    with _db_connection() as connection:
+    with _read_db_connection() as connection:
         rows = connection.execute("SELECT payload FROM orders ORDER BY updated_at DESC").fetchall()
     return [json.loads(row[0]) for row in rows]
 
@@ -301,7 +320,13 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
     own = st.session_state["customer_orders"]
     if not include_saved:
         allowed = {item["订单编号"] for item in own} | set(st.session_state.get("verified_order_ids", []))
-        current = {item["订单编号"]: item for item in load_order_records()}
+        if not allowed:
+            return []
+        from 功能组件_页面共用代码.storage import database_url
+        url = database_url()
+        records = (_cached_cloud_order_ids(hashlib.sha256(url.encode()).hexdigest(), tuple(sorted(allowed)))
+                   if url else load_order_records())
+        current = {item["订单编号"]: item for item in records}
         # 返回共享数据库的最新值；不得用客户端旧快照覆盖调度状态。
         return [current[oid] for oid in sorted(allowed) if oid in current]
     paths = list(ORDER_DATA_DIR.glob("*.xlsx")) + list(ORDER_DATA_DIR.glob("*/*.xlsx"))
@@ -330,7 +355,7 @@ def init_orders(include_saved: bool = False) -> list[dict[str, Any]]:
                         for item in records.values():
                             connection.execute("INSERT OR IGNORE INTO orders VALUES (?, ?, ?)",
                                                (str(item["订单编号"]), beijing_now().isoformat(), json.dumps(item, ensure_ascii=False, default=str)))
-                    _cached_cloud_orders.clear()
+                    invalidate_order_cache()
                 _MIGRATED_EXCEL_KEYS.add(key)
     return sorted(load_order_records(), key=lambda item: str(item.get("提交时间", "")), reverse=True)
 
@@ -395,7 +420,7 @@ def _commit_orders(orders):
             order["保存状态"] = "已保存到订单数据库"
             connection.execute("INSERT INTO orders VALUES (?, ?, ?)",
                                (order["订单编号"], order["提交时间"], json.dumps(order, ensure_ascii=False)))
-    _cached_cloud_orders.clear()
+    invalidate_order_cache()
     st.session_state.setdefault("customer_orders", [])[:0] = orders
     return orders
 
@@ -495,7 +520,7 @@ def cancel_customer_order(order_id: str) -> None:
         connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
                            (json.dumps(order, ensure_ascii=False), now, order_id))
         connection.execute("DELETE FROM delivery_drafts WHERE delivery_day=?", (day,))
-    _cached_cloud_orders.clear()
+    invalidate_order_cache()
 
 
 def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = False) -> None:
@@ -516,7 +541,7 @@ def customer_update(order_id: str, changes: dict[str, Any], receipt: bool = Fals
             order["异常反馈"] = changes["异常反馈"]
         connection.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?",
                            (json.dumps(order, ensure_ascii=False), beijing_now().isoformat(), order_id))
-    _cached_cloud_orders.clear()
+    invalidate_order_cache()
 
 
 def find_order(order_id: str, include_saved: bool = False) -> dict[str, Any] | None:

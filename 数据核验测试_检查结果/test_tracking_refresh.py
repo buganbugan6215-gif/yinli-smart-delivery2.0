@@ -1,4 +1,5 @@
 import copy
+import folium
 
 import streamlit as st
 import streamlit_folium
@@ -58,6 +59,8 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     assert any("自动更新已停止" in c.value for c in app.caption)
     assert len(builds) == 2
     assert components[-1]["key"] != components[0]["key"]
+
+
     monkeypatch.setattr(state, "customer_order", lambda *a: copy.deepcopy(order))
     order["状态"] = "签收完成"
     app.run()
@@ -78,3 +81,12 @@ def test_tracking_reuses_base_map_and_stops_timer(monkeypatch):
     assert not app.exception
     assert len(builds) == 5
     assert components[-1]["key"] != components[0]["key"]
+
+
+def test_playback_control_changes_speed_without_rebuilding_map():
+    fmap = folium.Map(location=[30.0, 104.0])
+    maps.PlaybackControl().add_to(fmap)
+    script = fmap.get_root().render()
+    assert "elapsedAtAnchor = this.elapsed(now)" in script
+    assert "map._yinliPlayback.setFactor(Number(input.value))" in script
+    assert "map.fire('yinli:replay')" in script

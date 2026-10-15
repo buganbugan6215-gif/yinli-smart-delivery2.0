@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import warehouses
 from 功能组件_页面共用代码.batch_dispatch import get_batch, get_draft, day_orders, input_fingerprint, save_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 
 def selector(day, confirmed=None, selected_count=None):
@@ -81,12 +81,19 @@ def render_cost(plan):
 
 
 def render_map(plan, key="warehouse-map"):
+    import copy
     from 功能组件_页面共用代码.maps import plan_map
     from streamlit_folium import st_folium
     detailed = st.toggle("显示细支道路（加载更多地图数据）", key=key+"-roads")
-    fmap = plan_map(plan, detailed=detailed)
+    cache_key = (key, detailed, plan.get("计算时间"), plan.get("输入指纹"), plan.get("仓库数量"))
+    cached = st.session_state.get("staff_plan_map")
+    if cached is None or cached[0] != cache_key:
+        base_map = plan_map(plan, detailed=detailed)
+        base_map.get_root().render()
+        st.session_state["staff_plan_map"] = (cache_key, base_map)
+    fmap = copy.deepcopy(st.session_state["staff_plan_map"][1])
     st.caption("蓝色实线：鲜面条 · 橙色虚线：姜蒜 · 灰蓝虚线：仓间补货")
-    st_folium(fmap, use_container_width=True, height=560, returned_objects=[], key=key+str(detailed))
+    st_folium(fmap, use_container_width=True, height=560, returned_objects=[], key=key+str(detailed), render=False)
 
 
 def route_table(plan):

@@ -1,7 +1,7 @@
 """整日批次的指纹校验、原子确认与进度更新。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 
 import copy
 import hashlib
@@ -44,7 +44,7 @@ def clear_all_order_data():
         conn.execute("DELETE FROM warehouse_selection")
         conn.execute("CREATE TABLE IF NOT EXISTS app_settings (name TEXT PRIMARY KEY, payload TEXT NOT NULL)")
         conn.execute("INSERT OR REPLACE INTO app_settings VALUES (?, ?)", ("legacy_excel_disabled", "true"))
-    state._cached_cloud_orders.clear()
+    state.invalidate_order_cache()
     for key in ("customer_orders", "verified_order_ids", "active_order_id", "lookup_order_id", "last_order_group", "tracking_base_map"):
         state.st.session_state.pop(key, None)
     root = state.ORDER_DATA_DIR.resolve()
@@ -66,17 +66,21 @@ def _tables(connection):
 
 
 def get_draft(day):
-    with state._db_connection() as conn:
-        _tables(conn)
+    from 功能组件_页面共用代码.storage import database_url
+    with state._read_db_connection() as conn:
+        if not database_url():
+            _tables(conn)
         row = conn.execute("SELECT payload FROM delivery_drafts WHERE delivery_day=?", (str(day),)).fetchone()
     return json.loads(row[0]) if row else None
 
 
 def load_staff_day_state(day):
     """一次读取调度页所需的批次、草稿和仓库模式。"""
-    with state._db_connection() as conn:
-        _tables(conn)
-        conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
+    from 功能组件_页面共用代码.storage import database_url
+    with state._read_db_connection() as conn:
+        if not database_url():
+            _tables(conn)
+            conn.execute("CREATE TABLE IF NOT EXISTS warehouse_selection (day TEXT PRIMARY KEY, count INTEGER NOT NULL)")
         row = conn.execute("SELECT "
                            "(SELECT payload FROM delivery_batches WHERE delivery_day=?), "
                            "(SELECT payload FROM delivery_drafts WHERE delivery_day=?), "
@@ -135,8 +139,10 @@ def calculation_groups(day, orders=None, confirmed=_MISSING, draft=_MISSING, sel
 
 
 def get_batch(day):
-    with state._db_connection() as conn:
-        _tables(conn)
+    from 功能组件_页面共用代码.storage import database_url
+    with state._read_db_connection() as conn:
+        if not database_url():
+            _tables(conn)
         row = conn.execute("SELECT payload FROM delivery_batches WHERE delivery_day=?", (str(day),)).fetchone()
     return json.loads(row[0]) if row else None
 
@@ -253,7 +259,7 @@ def confirm_batch(plan, now=None, depart_immediately=False):
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(o, ensure_ascii=False), result["确认时间"], o["订单编号"]))
         conn.execute("INSERT INTO delivery_batches VALUES (?, ?)", (day, json.dumps(result, ensure_ascii=False)))
         conn.execute("DELETE FROM delivery_drafts WHERE delivery_day=?", (day,))
-    state._cached_cloud_orders.clear()
+    state.invalidate_order_cache()
     return result
 
 
@@ -286,7 +292,7 @@ def advance_batch(day, target, now=None):
             if target == "已送达":
                 order["实际到达时间"] = timestamp
             conn.execute("UPDATE orders SET payload=?, updated_at=? WHERE order_id=?", (json.dumps(order, ensure_ascii=False), timestamp, order["订单编号"]))
-    state._cached_cloud_orders.clear()
+    state.invalidate_order_cache()
 
 
 def workbook_bytes(plan):

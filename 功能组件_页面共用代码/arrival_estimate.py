@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from 功能组件_页面共用代码.batch_solver import flexible_departure, travel_minutes
 from 功能组件_页面共用代码.delivery_calendar import as_beijing
 
-RELEASE_VERSION = "2026-10-15-vehicle-motion-v35"
+RELEASE_VERSION = "2026-10-15-smooth-stops-v36"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
@@ -118,8 +118,10 @@ def arrival_window(order, now=None):
         return None
     from 功能组件_页面共用代码 import order_state as state
     from 功能组件_页面共用代码.batch_dispatch import _tables
-    with state._db_connection() as conn:
-        _tables(conn)
+    from 功能组件_页面共用代码.storage import database_url
+    with state._read_db_connection() as conn:
+        if not database_url():
+            _tables(conn)
         row = conn.execute("SELECT payload FROM delivery_batches WHERE delivery_day=?", (order["期望送达日期"],)).fetchone()
         if not row:
             return None
