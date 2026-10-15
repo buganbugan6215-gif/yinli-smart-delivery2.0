@@ -1,7 +1,7 @@
 """沿已确认 Dijkstra 路线生成车辆位置、剩余里程和动态 ETA。"""
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
+RELEASE_VERSION = "2026-10-15-staff-map-auto-departure-v40"
 
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
@@ -61,6 +61,9 @@ def route_motion_plan(order: dict[str, Any], stops: list[dict[str, Any]] | None 
     normal = float(rates["平均速度_kmh"])
     peak = float(rates["早高峰速度_kmh"])
     coordinates = route_coordinates(order.get("路线GeoJSON"))
+    if len(coordinates) == 1:
+        # 站点与仓库重合时仍要演示该站的等待和服务。
+        coordinates.append(coordinates[0][:])
     if len(coordinates) < 2 or min(normal, peak) <= 0:
         return [], []
     stops = stops or []
@@ -107,6 +110,30 @@ def route_motion_plan(order: dict[str, Any], stops: list[dict[str, Any]] | None 
 
 def route_motion_timeline(order: dict[str, Any], stops: list[dict[str, Any]] | None = None) -> list[list[float]]:
     return route_motion_plan(order, stops)[0]
+
+
+def plan_route_motion(plan: dict[str, Any], route: dict[str, Any], orders: list[dict[str, Any]]) -> tuple[list[list[float]], list[dict[str, Any]]]:
+    """按调度方案的道路里程、车速和每站服务时间生成整车演示时间轴。"""
+    records = {order["订单编号"]: order for order in orders}
+    labels = {label: index for index, label in enumerate(plan["矩阵标签"])}
+    previous = 0 if route.get("仓库编号", "D0") == "D0" else labels.get("新增配送点")
+    stops = []
+    for number, (oid, feature) in enumerate(zip(route["订单编号列表"], route["路线GeoJSON"]["features"]), 1):
+        coordinates = feature["geometry"]["coordinates"]
+        if oid not in records or not coordinates:
+            return [], []
+        index = labels[oid]
+        stop = {"number": number, "coordinate": list(map(float, coordinates[-1][:2])),
+                "earliest": float(records[oid]["期望窗开始_分钟"]),
+                "service": float(records[oid]["服务时间_分钟"]),
+                "departure_minute": float(route["发车时间_分钟"])}
+        if previous is not None:
+            stop["leg_km"] = float(plan["距离矩阵_m"][previous][index]) / 1000
+        stops.append(stop)
+        previous = index
+    preview = {"路线GeoJSON": route["路线GeoJSON"], "计划发车_分钟": route["发车时间_分钟"],
+               "行驶参数": plan["参数"]}
+    return route_motion_plan(preview, stops)
 
 
 def route_stop_data(order: dict[str, Any]) -> list[dict[str, Any]]:

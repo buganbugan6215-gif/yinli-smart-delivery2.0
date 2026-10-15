@@ -1,7 +1,6 @@
 from 功能组件_页面共用代码.release_runtime import ensure_current_release
 ensure_current_release()
 
-from datetime import time
 import pandas as pd
 import streamlit as st
 from 功能组件_页面共用代码.ui import display_table
@@ -45,9 +44,8 @@ with order_tab:
     batch, draft, selected_count = load_staff_day_state(day)
     count, mode_changed = warehouse_ui.selector(day, confirmed=batch, selected_count=selected_count)
     if mode_changed and day_orders(day):
-        previous_plan = draft
         try:
-            warehouse_ui.calculate(day, previous_plan["发车分钟"] if previous_plan else 360)
+            warehouse_ui.calculate(day)
             st.rerun()
         except (ValueError, OSError) as exc:
             st.error(str(exc))
@@ -64,9 +62,7 @@ with order_tab:
             st.button("立即计算路径", type="primary", icon=":material/route:", disabled=True, use_container_width=True)
     elif not batch:
         plan = draft
-        saved_minute = int(plan["发车分钟"]) if plan else 360
-        departure = st.time_input("最早发车时间", time((saved_minute // 60) % 24, saved_minute % 60))
-        st.caption("各线路结合订单收货时间、道路里程和车速自动安排发车，尽量减少车辆到站后的等待。")
+        st.caption("系统按订单收货时间窗、道路里程、车速及仓库就绪时间，为各线路自动安排发车，尽量减少到站等待。")
         if not closed:
             st.info("可提前确认当前全部订单；确认后该配送日立即停止接单，新订单需选择更晚日期。")
         if pending:
@@ -76,13 +72,13 @@ with order_tab:
             st.success("当前订单均已计算，已从待计算列表移出。")
         if plan and pending:
             st.caption("新增或变更订单将与已计算订单合并重算，保证车辆分配与整日线路一致。")
-        stale = bool(plan and (not warehouses.current(plan, count) or input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or departure.hour*60+departure.minute != plan["发车分钟"]))
+        stale = bool(plan and (not warehouses.current(plan, count) or input_fingerprint(orders) != plan["输入指纹"] or pricing_settings() != plan["参数"] or plan["发车分钟"] != 0))
         with st.container(key="dispatch_compute"):
             compute_now = st.button("立即计算路径", type="primary", icon=":material/route:", disabled=not pending and not stale, use_container_width=True)
         if compute_now:
             progress = st.progress(0.0, text="正在加载货车路网…")
             try:
-                plan = solve_batch(orders, pricing_settings(), departure.hour*60+departure.minute,
+                plan = solve_batch(orders, pricing_settings(), 0,
                                    lambda value, message: progress.progress(value, text=message), warehouse_count=count)
                 plan["输入指纹"] = input_fingerprint(orders)
                 save_draft(plan)
@@ -94,9 +90,9 @@ with order_tab:
         if plan:
             current_input = input_fingerprint(orders)
             stale = (not warehouses.current(plan, count) or current_input != plan["输入指纹"] or pricing_settings() != plan["参数"] or
-                     departure.hour*60+departure.minute != plan["发车分钟"])
+                     plan["发车分钟"] != 0)
             if stale:
-                st.warning("订单、仓库模式、车辆参数或计划发车时间已变化，请重新计算后确认。")
+                st.warning("订单、仓库模式、车辆参数或发车计算方式已变化，请重新计算后确认。")
             if stale:
                 st.info("原方案已失效，重新计算后显示所选仓库的成本和路线。")
                 st.stop()

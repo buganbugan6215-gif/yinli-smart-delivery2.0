@@ -5,7 +5,7 @@ from 功能组件_页面共用代码 import warehouses
 from 功能组件_页面共用代码.batch_dispatch import get_batch, get_draft, day_orders, input_fingerprint, save_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
+RELEASE_VERSION = "2026-10-15-staff-map-auto-departure-v40"
 
 
 def selector(day, confirmed=None, selected_count=None):
@@ -43,12 +43,12 @@ def active_plan(day):
     return None
 
 
-def calculate(day, departure=360):
+def calculate(day):
     from 功能组件_页面共用代码.batch_solver import solve_batch
     orders = day_orders(day)
     progress = st.progress(0.0, text="正在计算所选仓库的道路矩阵…")
     try:
-        plan = solve_batch(orders, pricing_settings(), departure,
+        plan = solve_batch(orders, pricing_settings(), 0,
                            lambda value, message: progress.progress(value, text=message),
                            warehouse_count=warehouses.selection(day))
         plan["输入指纹"] = input_fingerprint(orders)
@@ -83,16 +83,21 @@ def render_cost(plan):
 def render_map(plan, key="warehouse-map"):
     import copy
     from 功能组件_页面共用代码.maps import plan_map
+    from 功能组件_页面共用代码.ui import display_table
     detailed = st.toggle("显示细支道路（加载更多地图数据）", key=key+"-roads")
     cache_key = (key, detailed, plan.get("计算时间"), plan.get("输入指纹"), plan.get("仓库数量"))
     cached = st.session_state.get("staff_plan_map")
     if cached is None or cached[0] != cache_key:
-        base_map = plan_map(plan, detailed=detailed)
+        base_map = plan_map(plan, detailed=detailed, orders=day_orders(plan["配送日期"]))
         base_map.get_root().render()
         st.session_state["staff_plan_map"] = (cache_key, base_map)
     fmap = copy.deepcopy(st.session_state["staff_plan_map"][1])
     st.caption("蓝色实线：鲜面条 · 橙色虚线：姜蒜 · 灰蓝虚线：仓间补货")
-    st.components.v1.html(fmap.get_root().render(), height=560, scrolling=False)
+    st.caption("车辆按计划线路、道路里程和车速演示行驶，并在各站按等待与服务时间停靠；可在地图内调节倍率或重播。车辆位置为演示仿真，未接入北斗导航实时定位。")
+    st.components.v1.html(fmap.get_root().render(), height=800, scrolling=False)
+    if fmap.staff_pause_rows:
+        with st.expander("查看车辆各站停留"):
+            display_table(fmap.staff_pause_rows, hide_index=True, use_container_width=True)
 
 
 def route_table(plan):

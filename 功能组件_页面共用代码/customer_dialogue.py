@@ -9,7 +9,7 @@ from 功能组件_页面共用代码 import order_state as state
 from 功能组件_页面共用代码.delivery_calendar import beijing_now, as_beijing
 from 功能组件_页面共用代码.arrival_estimate import arrival_window
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
+RELEASE_VERSION = "2026-10-15-staff-map-auto-departure-v40"
 DONE = {"已送达", "签收完成", "已取消"}
 
 
@@ -125,7 +125,7 @@ def approve_reschedule(oid, request_id):
     previous = batch.get_batch(day) or batch.get_draft(day)
     count = warehouses.selection(day)
     rates = state.pricing_settings()
-    plan = solve_batch(candidate, rates, previous["发车分钟"] if previous else 360, warehouse_count=count)
+    plan = solve_batch(candidate, rates, warehouse_count=count)
     plan["输入指纹"] = batch.input_fingerprint(candidate)
     plan["计算时间"] = beijing_now().isoformat()
     plan["订单指纹"] = {o["订单编号"]: batch.input_fingerprint([o]) for o in candidate}

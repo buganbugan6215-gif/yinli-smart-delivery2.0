@@ -9,7 +9,7 @@ from branca.element import MacroElement, Template
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
+RELEASE_VERSION = "2026-10-15-staff-map-auto-departure-v40"
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -282,20 +282,48 @@ def add_customer_points(fmap: folium.Map, geojson: dict[str, Any], product_code:
         ).add_to(fmap)
 
 
-def plan_map(plan, detailed=False):
+def plan_map(plan, detailed=False, orders=None):
     from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
+    from 功能组件_页面共用代码.vehicle_simulator import plan_route_motion
     bounds = [[p[1], p[0]] for route in plan["线路"]
               for feature in route["路线GeoJSON"]["features"]
               for p in feature["geometry"]["coordinates"]]
     road_bounds = (min(p[1] for p in bounds), min(p[0] for p in bounds),
                    max(p[1] for p in bounds), max(p[0] for p in bounds)) if bounds else None
-    fmap, minor = create_chengdu_map(warehouses=plan.get("仓库"), road_bounds=road_bounds, detailed=detailed)
+    network_margin = 0.12
+    network_bounds = (road_bounds[0] - network_margin, road_bounds[1] - network_margin,
+                      road_bounds[2] + network_margin, road_bounds[3] + network_margin) if road_bounds else None
+    fmap, minor = create_chengdu_map(warehouses=plan.get("仓库"), road_bounds=network_bounds, detailed=detailed)
+    pause_rows = []
+    if orders:
+        PlaybackControl().add_to(fmap)
+    first_departure = min((float(route["发车时间_分钟"]) for route in plan["线路"]), default=0)
     for route in plan["线路"]:
         product = route.get("品类", "鲜面条")
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 4, "opacity": .9, "dashArray": "8 8" if product == "姜蒜" else None}
         folium.GeoJson(route["路线GeoJSON"], name=route["线路编号"], style_function=lambda _, s=style: s,
                        tooltip=escape(f"{route['线路编号']} · {route.get('出发仓库', '原配送中心')} · {route['车辆编号']}")).add_to(fmap)
+        if orders:
+            timeline, pauses = plan_route_motion(plan, route, orders)
+            if timeline:
+                offset = max(0.0, (float(route["发车时间_分钟"]) - first_departure) * 60)
+                if offset:
+                    timeline = [timeline[0][:2] + [0.0]] + [[lat, lon, second + offset] for lat, lon, second in timeline]
+            for pause in pauses:
+                wait, service = pause["wait_minutes"], pause["service_minutes"]
+                pause_rows.append({"线路编号": route["线路编号"], "车辆编号": route["车辆编号"],
+                                   "品类": product, "站点": f"第 {pause['number']} 站",
+                                   "等待（分钟）": round(wait, 1), "服务（分钟）": round(service, 1),
+                                   "停留合计（分钟）": round(wait + service, 1)})
+                lon, lat = pause["coordinate"]
+                folium.CircleMarker([lat, lon], radius=5, color=color, fill=True, fill_opacity=1,
+                                    tooltip=f"{product} · 第{pause['number']}站 · 等待{wait:.1f}分钟 · 服务{service:.1f}分钟").add_to(fmap)
+            if timeline:
+                marker = folium.Marker(timeline[0][:2],
+                                       tooltip=f"{product} · {route['车辆编号']} · 计划发车 {int(route['发车时间_分钟'])//60:02d}:{int(route['发车时间_分钟'])%60:02d} · 演示仿真",
+                                       icon=folium.Icon(color="blue" if product == "鲜面条" else "orange", icon="truck", prefix="fa")).add_to(fmap)
+                AnimatedVehicle(marker, timeline, 0, 10, demo=True).add_to(fmap)
     for transfer in plan.get("补货", []):
         folium.GeoJson(transfer["路线GeoJSON"], name=f"{transfer['品类']}仓间补货",
                        style_function=lambda _: {"color": "#526c95", "weight": 3, "dashArray": "5 9", "opacity": .7},
@@ -304,8 +332,11 @@ def plan_map(plan, detailed=False):
         coords = assignment["路线GeoJSON"]["features"][0]["geometry"]["coordinates"][-1]
         folium.CircleMarker([coords[1], coords[0]], radius=4, color="#244775", fill=True,
                             tooltip=escape(f"{assignment['订单编号']} · 第{assignment['配送顺序']}站")).add_to(fmap)
-    if bounds:
-        fmap.fit_bounds(bounds, padding=(28, 28), max_zoom=13)
+    if network_bounds:
+        view_bounds = [[network_bounds[1], network_bounds[0]], [network_bounds[3], network_bounds[2]]]
+        fmap.fit_bounds(view_bounds, padding=(20, 20), max_zoom=14)
+        ResponsiveFitBounds(view_bounds).add_to(fmap)
     add_zoom_detail_behavior(fmap, minor, threshold=13)
     folium.LayerControl(collapsed=True).add_to(fmap)
+    fmap.staff_pause_rows = pause_rows
     return fmap

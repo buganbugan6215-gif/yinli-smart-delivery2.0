@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-smooth-stops-v39"
+RELEASE_VERSION = "2026-10-15-staff-map-auto-departure-v40"
 
 from functools import lru_cache
 import gzip
@@ -173,12 +173,12 @@ def _route_schedule_at(sequence, orders, matrix, vehicle, departure, rates):
             "variable": km*vehicle["per_km"]+cooling+loss}
 
 
-def assign_routes(orders, matrix, rates, departure=360, strategy="deadline", warehouse_count=1):
+def assign_routes(orders, matrix, rates, departure=0, strategy="deadline", warehouse_count=1):
     from 功能组件_页面共用代码.warehouse_routing import allocate
     return allocate(orders, matrix, rates, departure, strategy, warehouse_count)
 
 
-def solve_batch(orders, rates, departure=360, progress=None, warehouse_count=1):
+def solve_batch(orders, rates, departure=0, progress=None, warehouse_count=1):
     from 功能组件_页面共用代码.warehouses import depots, snapshot
     from 功能组件_页面共用代码.warehouse_routing import cost_summary, replenishment
     warehouses = depots(warehouse_count)

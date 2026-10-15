@@ -1,14 +1,12 @@
 from 功能组件_页面共用代码.release_runtime import ensure_current_release
 ensure_current_release()
 
-from datetime import time
 import pandas as pd
 import streamlit as st
 from 功能组件_页面共用代码.ui import display_table
 from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch, input_fingerprint
 from 功能组件_页面共用代码.batch_solver import solve_batch
 from 功能组件_页面共用代码 import warehouse_ui, warehouses
-from 功能组件_页面共用代码.batch_dispatch import get_draft
 from 功能组件_页面共用代码.order_state import pricing_settings
 from 功能组件_页面共用代码.live_operations import select_delivery_day, order_summary, plan_metrics, compare_strategies
 from 功能组件_页面共用代码.ui import inject_css, render_sidebar, require_staff_access, page_title
@@ -21,9 +19,8 @@ day = select_delivery_day(st, historical=True)
 st.caption("默认查看今日、明日；预约到更晚日期的订单可选择“其他日期”查看和试算。")
 count, changed = warehouse_ui.selector(day)
 if changed and day_orders(day):
-    old = get_draft(day)
     try:
-        warehouse_ui.calculate(day, old["发车分钟"] if old else 360)
+        warehouse_ui.calculate(day)
         st.rerun()
     except (ValueError, OSError) as exc:
         st.error(str(exc))
@@ -52,13 +49,11 @@ with overview:
 
 with comparison:
     st.caption("同一批实际订单和一套车队，比较原仓与原仓＋新增点。负节省表示双仓费用更高；未计未知场地费。")
-    departure = st.time_input("试算发车时间", value=time(6, 0))
-    minutes = departure.hour * 60 + departure.minute
     if st.button("计算本配送日方案对比", type="primary"):
         orders = day_orders(day)
         try:
             with st.spinner("正在计算实际订单的道路矩阵及单仓／双仓方案…"):
-                plan = solve_batch(orders, pricing_settings(), minutes, warehouse_count=count)
+                plan = solve_batch(orders, pricing_settings(), warehouse_count=count)
                 st.session_state[f"comparison_{day}"] = compare_strategies(orders, plan)
         except (ValueError, OSError) as exc:
             st.error(str(exc))
@@ -66,8 +61,8 @@ with comparison:
     def render_comparison():
         result = st.session_state.get(f"comparison_{day}")
         if result:
-            if result["输入指纹"] != input_fingerprint(day_orders(day)) or result["参数"] != pricing_settings() or result["发车分钟"] != minutes:
-                st.warning("订单、参数或发车时间已变化，原对比失效，请重新计算。")
+            if result["输入指纹"] != input_fingerprint(day_orders(day)) or result["参数"] != pricing_settings() or result["发车分钟"] != 0:
+                st.warning("订单、参数或发车计算方式已变化，原对比失效，请重新计算。")
             else:
                 display_table(pd.DataFrame(result["结果"]).round(2), hide_index=True, use_container_width=True)
                 st.caption("两种仓库方案均使用当前订单重新求解；小批量下补货成本可能抵消路线节省。算法为可行插入启发式，不保证全局最优。")

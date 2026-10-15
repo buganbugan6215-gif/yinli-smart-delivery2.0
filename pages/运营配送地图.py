@@ -2,7 +2,7 @@ from 功能组件_页面共用代码.release_runtime import ensure_current_relea
 ensure_current_release()
 import streamlit as st
 from 功能组件_页面共用代码 import warehouse_ui
-from 功能组件_页面共用代码.batch_dispatch import day_orders, get_draft, get_batch
+from 功能组件_页面共用代码.batch_dispatch import day_orders, get_batch
 from 功能组件_页面共用代码.live_operations import select_delivery_day
 from 功能组件_页面共用代码.ui import inject_css, page_title, render_sidebar, require_staff_access
 
@@ -14,9 +14,8 @@ day = select_delivery_day(st, historical=True)
 count, changed = warehouse_ui.selector(day)
 plan = warehouse_ui.active_plan(day)
 if changed and day_orders(day):
-    old = get_draft(day)
     try:
-        warehouse_ui.calculate(day, old["发车分钟"] if old else 360)
+        warehouse_ui.calculate(day)
         st.rerun()
     except (ValueError, OSError) as exc:
         st.error(str(exc))

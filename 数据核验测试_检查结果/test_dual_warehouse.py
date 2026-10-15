@@ -107,6 +107,7 @@ def test_single_dual_ui_switch_recalculates_shared_views(database, monkeypatch):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/"app.py"), default_timeout=60).run()
     app.session_state["staff_authenticated"] = True
     app.switch_page("pages/企业工作台.py").run()
+    assert not any(widget.label == "最早发车时间" for widget in app.time_input)
     app.selectbox[0].select("其他日期").run()
     app.date_input[0].set_value(date(2020, 1, 2)).run()
     next(b for b in app.button if b.label == "立即计算路径").click().run()
@@ -126,3 +127,29 @@ def test_map_contains_only_two_warehouse_markers_and_expanded_bounds(plans):
     markers = [v for v in m._children.values() if isinstance(v, folium.Marker) and not isinstance(v, folium.CircleMarker)]
     assert len(markers) == 2
     assert {tuple(v.location) for v in markers} == {(30.851137170192068, 104.26104981303031), (30.6608656, 104.0616461)}
+
+
+def test_staff_map_uses_route_motion_and_stop_dwell(plans):
+    import json
+    from 功能组件_页面共用代码.maps import plan_map, AnimatedVehicle, PlaybackControl
+    from 功能组件_页面共用代码.vehicle_simulator import plan_route_motion
+
+    plan = plans[1]
+    fmap = plan_map(plan, orders=orders())
+    assert sum(isinstance(child, AnimatedVehicle) for child in fmap._children.values()) == len(plan["线路"])
+    first_departure = min(route["发车时间_分钟"] for route in plan["线路"])
+    animations = [child for child in fmap._children.values() if isinstance(child, AnimatedVehicle)]
+    for route, animation in zip(plan["线路"], animations):
+        offset = (route["发车时间_分钟"] - first_departure) * 60
+        timeline = json.loads(animation.timeline_json)
+        assert timeline[0][2] == 0
+        if offset:
+            assert timeline[1][:2] == timeline[0][:2]
+            assert timeline[1][2] == offset
+    assert any(isinstance(child, PlaybackControl) for child in fmap._children.values())
+    assert len(fmap.staff_pause_rows) == len(plan["订单结果"])
+    for route in plan["线路"]:
+        timeline, pauses = plan_route_motion(plan, route, orders())
+        assert timeline and len(pauses) == len(route["订单编号列表"])
+        assert all(pause["departure_seconds"] >= pause["arrival_seconds"] for pause in pauses)
+    assert "yinli-playback" in fmap.get_root().render()
