@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-RELEASE_VERSION = "2026-10-15-map-date-v31"
+RELEASE_VERSION = "2026-10-15-map-date-v32"
 
 import html
 import inspect

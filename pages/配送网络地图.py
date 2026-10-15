@@ -9,7 +9,7 @@ import streamlit as st
 from 功能组件_页面共用代码.ui import display_table
 from streamlit_folium import st_folium
 
-from 功能组件_页面共用代码.maps import add_zoom_detail_behavior, create_chengdu_map
+from 功能组件_页面共用代码.maps import ResponsiveFitBounds, add_zoom_detail_behavior, create_chengdu_map
 from 功能组件_页面共用代码.formal_dispatch import is_dijkstra_route
 from 功能组件_页面共用代码.live_operations import PRODUCT_COLORS
 from 功能组件_页面共用代码.gps_simulator import get_tracking_snapshot
@@ -66,7 +66,7 @@ static_map = st.toggle("地图加载异常时使用备用地图", key="customer-
 points = [p for _, _, route in routes for feature in route["features"] for p in feature["geometry"]["coordinates"]]
 road_bounds = (min(p[0] for p in points), min(p[1] for p in points),
                max(p[0] for p in points), max(p[1] for p in points))
-map_key = ("nearby-v23", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
+map_key = ("nearby-v24", order.get("总单编号") or str(active), hashlib.sha256(json.dumps([routes, detailed], sort_keys=True).encode()).hexdigest())
 cached = st.session_state.get("tracking_base_map")
 if cached is None or cached[0] != map_key:
     warehouses = {o.get("仓库编号", "D0"): {"编号": o.get("仓库编号", "D0"), "名称": o.get("出发仓库", "原配送中心"), "坐标": o.get("仓库坐标", [104.26104981303031, 30.851137170192068])} for o in group}
@@ -76,6 +76,7 @@ if cached is None or cached[0] != map_key:
     bounds = [[p[1], p[0]] for _, _, r in routes for f in r["features"] for p in f["geometry"]["coordinates"]]
     if bounds:
         fmap.fit_bounds(bounds, padding=(20, 20), max_zoom=14)
+        ResponsiveFitBounds(bounds).add_to(fmap)
     for oid, product, route in routes:
         color = PRODUCT_COLORS[product]
         style = {"color": color, "weight": 7 if product == "鲜面条" else 4, "opacity": 0.9, "dashArray": "8 8" if product == "姜蒜" else None}

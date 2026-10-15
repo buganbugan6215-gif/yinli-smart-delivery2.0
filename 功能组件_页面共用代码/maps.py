@@ -5,15 +5,43 @@ from pathlib import Path
 from typing import Any
 
 import folium
+from branca.element import MacroElement, Template
 from functools import lru_cache
 from html import escape
 
-RELEASE_VERSION = "2026-10-15-map-date-v31"
+RELEASE_VERSION = "2026-10-15-map-date-v32"
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "网站数据_页面读取的指标"
 DEPOT = [30.851137170192068, 104.26104981303031]
+
+
+class ResponsiveFitBounds(MacroElement):
+    """地图容器完成布局后重新按路线范围定位。"""
+
+    _template = Template("""
+    {% macro script(this, kwargs) %}
+    (function () {
+      const map = {{ this._parent.get_name() }};
+      const bounds = {{ this.bounds_json }};
+      const fit = function () {
+        const container = map.getContainer();
+        if (container.clientWidth < 100 || container.clientHeight < 100) return;
+        map.invalidateSize({pan: false});
+        map.fitBounds(bounds, {padding: [20, 20], maxZoom: 14, animate: false});
+      };
+      new ResizeObserver(fit).observe(map.getContainer());
+      requestAnimationFrame(fit);
+      setTimeout(fit, 300);
+      setTimeout(fit, 1200);
+    })();
+    {% endmacro %}
+    """)
+
+    def __init__(self, bounds: list[list[float]]) -> None:
+        super().__init__()
+        self.bounds_json = json.dumps(bounds)
 
 
 @lru_cache(maxsize=4)
